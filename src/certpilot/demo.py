@@ -75,7 +75,6 @@ def run_demo(output_dir: str | Path, *, live: bool = True) -> DemoResult:
                 crit_days=7,
                 notify_within_days=30,
             )
-            config._base_dir = work  # noqa: SLF001
             report = build_report(inventory, config, now)
             files = write_reports(report, destination)
     finally:

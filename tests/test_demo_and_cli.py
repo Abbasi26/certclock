@@ -156,6 +156,38 @@ def test_entry_points_are_registered():
     assert {"tls", "files", "windows", "adcs", "linux"} <= names
 
 
+@pytest.mark.parametrize("as_string", [False, True])
+def test_demo_relative_output_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, as_string: bool
+):
+    monkeypatch.chdir(tmp_path)
+    destination = Path("nested") / "demo"
+    output_dir = str(destination) if as_string else destination
+
+    for dirty in (False, True):
+        if dirty:
+            work = destination / ".work"
+            work.mkdir()
+            (work / "owners.yml").write_text("invalid: [", encoding="utf-8")
+            (work / "stale.key").write_text("stale material", encoding="utf-8")
+
+        result = run_demo(output_dir, live=False)
+
+        assert result.output_dir == destination
+        assert all(path.is_file() for path in result.files.values())
+        assert not (destination / ".work").exists()
+        document = json.loads(
+            (destination / "inventory.json").read_text(encoding="utf-8")
+        )
+        mail = next(
+            cert
+            for cert in document["certificates"]
+            if cert["common_name"] == "mail.example.test"
+        )
+        assert mail["owner"] == "mail-team"
+        assert mail["service"] == "mail"
+
+
 def _outputs(directory: Path) -> str:
     chunks = []
     for path in directory.rglob("*"):
