@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+certpilot-demo/
+certpilot-out/
+*.db
+.coverage
+htmlcov/
+testResults.xml

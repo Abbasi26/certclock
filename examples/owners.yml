@@ -1,0 +1,23 @@
+# First matching rule wins. Unmatched certificates stay unassigned.
+rules:
+  - owner: network-team
+    service: remote-access
+    note: Remote access gateway
+    match:
+      common_name: vpn.example.test
+  - owner: platform
+    service: public-api
+    match:
+      san_contains: api.example.test
+  - owner: linux-ops
+    service: host-tls
+    match:
+      source: linux-file
+  - owner: windows-ops
+    service: machine-identity
+    match:
+      source: windows-store
+  - owner: pki
+    service: enterprise-ca
+    match:
+      source: adcs

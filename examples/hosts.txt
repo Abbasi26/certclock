@@ -1,0 +1,6 @@
+# TLS endpoints. One host per line: host:port, or host:port sni
+# Lines starting with # are ignored. Nothing here is scanned.
+#
+# vpn.example.test:443
+# 10.0.0.8:8443 vpn.example.test
+# [2001:db8::10]:443 vpn.example.test

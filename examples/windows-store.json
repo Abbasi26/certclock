@@ -1,0 +1,24 @@
+{
+  "collector": "certpilot-windows-store",
+  "version": 1,
+  "host": "FILE-01",
+  "collected_at": "2026-10-21T12:00:00Z",
+  "certificates": [
+    {
+      "store_location": "LocalMachine",
+      "store_name": "My",
+      "thumbprint_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "subject": "CN=files.example.test",
+      "issuer": "CN=Example Laboratory Issuing CA",
+      "serial": "10",
+      "not_before": "2026-10-01T00:00:00Z",
+      "not_after": "2030-04-01T00:00:00Z",
+      "sans": ["files.example.test"],
+      "key_type": "RSA",
+      "key_size": 2048,
+      "signature_algorithm": "sha256RSA",
+      "has_private_key": false,
+      "is_ca": false
+    }
+  ]
+}

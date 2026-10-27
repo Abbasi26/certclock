@@ -1,0 +1,23 @@
+{
+  "collector": "certpilot-linux-files",
+  "version": 1,
+  "host": "web01.example.test",
+  "collected_at": "2026-10-21T12:00:00Z",
+  "warnings": [],
+  "certificates": [
+    {
+      "path": "/etc/ssl/certs/api.example.test.pem",
+      "subject": "CN=api.example.test",
+      "issuer": "CN=Example Laboratory Issuing CA",
+      "serial": "20",
+      "not_before": "2026-10-01T00:00:00Z",
+      "not_after": "2030-06-01T00:00:00Z",
+      "sans": ["api.example.test"],
+      "fingerprint_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "key_type": "EC",
+      "key_size": 256,
+      "signature_algorithm": "ecdsa-with-SHA256",
+      "is_ca": false
+    }
+  ]
+}

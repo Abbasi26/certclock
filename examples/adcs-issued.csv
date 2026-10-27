@@ -1,0 +1,4 @@
+Request ID,Requester Name,Request Common Name,Request Disposition,Certificate Template,Serial Number,Certificate Effective Date,Certificate Expiration Date,Issuer Name
+1042,EXAMPLE\svc-enroll,laptop-enroll.example.test,20,User,a1b2c3d4,2026-10-01T00:00:00Z,2030-10-01T00:00:00Z,CN=Example Laboratory Issuing CA
+1043,EXAMPLE\svc-enroll,revoked.example.test,21,User,ff00,2026-10-01T00:00:00Z,2030-10-01T00:00:00Z,CN=Example Laboratory Issuing CA
+CertUtil: -view command completed successfully.
