@@ -27,7 +27,7 @@ def write_reports(report: Report, output_dir: str | Path) -> dict[str, Path]:
         "webhook_preview": directory / "webhook-preview.json",
     }
     files["html"].write_text(render_html(report), encoding="utf-8")
-    files["ics"].write_text(render_ics(report), encoding="utf-8")
+    files["ics"].write_text(render_ics(report), encoding="utf-8", newline="")
     files["checkmk"].write_text(render_checkmk(report), encoding="utf-8")
     files["prometheus"].write_text(render_prometheus(report), encoding="utf-8")
     files["json"].write_text(render_json(report), encoding="utf-8")

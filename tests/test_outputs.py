@@ -209,3 +209,14 @@ def test_checkmk_service_names_normalize_whitespace(
         )
         for line in lines
     ) == 1
+
+
+def test_written_ics_preserves_renderer_bytes(tmp_path: Path, now: dt.datetime):
+    report = _report(tmp_path, now)
+
+    files = write_reports(report, tmp_path / "report")
+    data = files["ics"].read_bytes()
+
+    assert data == render_ics(report).encode("utf-8")
+    assert b"\r\r\n" not in data
+    assert data.endswith(b"\r\n")
