@@ -1,3 +1,3 @@
 # Reviewed false positives: PEM header marker strings used to detect and refuse private keys (no key material).
-a680e8a427a54665a627f0145ee697799d959958:src/certpilot/bundled/collect_linux_certs.py:private-key:29
-a680e8a427a54665a627f0145ee697799d959958:src/certpilot/parse.py:private-key:24
+5038a2feb0461495fe4b628a3f1a37304e99f245:src/certpilot/bundled/collect_linux_certs.py:private-key:29
+5038a2feb0461495fe4b628a3f1a37304e99f245:src/certpilot/parse.py:private-key:24
