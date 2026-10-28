@@ -187,3 +187,25 @@ def test_ics_normalizes_text_newlines(
     assert "\r" not in without_delimiters
     assert "\n" not in without_delimiters
     assert all(len(line.encode("utf-8")) <= 75 for line in text.split("\r\n"))
+
+
+@pytest.mark.parametrize("whitespace", ["\r", "\n", "\r\n", "\t"])
+def test_checkmk_service_names_normalize_whitespace(
+    tmp_path: Path, now: dt.datetime, whitespace: str
+):
+    report = _report(tmp_path, now)
+    cert = next(cert for cert in report.certificates if cert.days_remaining == 4)
+    cert.subject_cn = f"before{whitespace}after"
+
+    text = render_checkmk(report)
+    lines = text.splitlines()
+
+    assert len(lines) == len(report.certificates) + 1
+    assert "\r" not in text
+    assert "\t" not in text
+    assert sum(
+        line.startswith(
+            '2 "Cert before after" expires_in_days=4;30;7;; '
+        )
+        for line in lines
+    ) == 1

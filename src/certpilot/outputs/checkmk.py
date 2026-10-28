@@ -77,5 +77,5 @@ def _service_names(certs: list[ReportCert]) -> dict[str, str]:
         base = cert.subject_cn or cert.fingerprint[:12]
         if counts[cert.subject_cn] > 1:
             base = f"{base} {cert.fingerprint[:8]}"
-        names[cert.fingerprint] = base.replace('"', "'")[:80]
+        names[cert.fingerprint] = " ".join(base.split()).replace('"', "'")[:80]
     return names
