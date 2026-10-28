@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import pytest
 
@@ -233,3 +234,30 @@ def test_manual_owner_rule_requires_every_key(now: dt.datetime):
 
 def _message(row, code: str) -> str:
     return next(problem.message for problem in row.problems if problem.code == code)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["false", "null", "0", "1", "'true'", "'false'", "[]", "{}"],
+)
+def test_owner_any_requires_boolean_true(tmp_path: Path, value: str):
+    path = tmp_path / "owners.yml"
+    path.write_text(
+        f"rules:\n  - owner: fallback\n    match:\n      any: {value}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as error:
+        load_owners(path)
+
+    assert str(error.value) == f"{path}: rule 1 'any' must be true"
+
+    for condition in ("", "      common_name: mail.example.test\n"):
+        path.write_text(
+            "rules:\n  - owner: fallback\n    match:\n      any: true\n"
+            + condition,
+            encoding="utf-8",
+        )
+        rules = load_owners(path)
+        assert len(rules) == 1
+        assert rules[0].match["any"] is True

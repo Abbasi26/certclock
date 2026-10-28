@@ -105,8 +105,9 @@ Inventory group name: `certpilot_linux`. Default search paths are `/etc/ssl` and
 `owners.yml` is applied when the report is built, so editing it does not require another collection. The first matching rule wins. Every rule needs a non-empty `match` map. Unknown match keys are an error.
 
 Match keys: `common_name`, `common_name_contains`, `subject_contains`, `issuer_contains`, `san_contains`, `san_suffix`, `source`, `source_detail_contains`, `serial`, and `any: true` as an explicit catch-all.
+If present, `any` must be the YAML boolean `true`; other values are rejected.
 
-When one certificate's issuer is another certificate in the inventory, the report says so. Matching prefers the authority key identifier, then the issuer DN. If the issuer expires before the leaf, the finding is `issuer_expires_first`: clients stop trusting the leaf when the CA expires. A TLS handshake that omitted an intermediate you do have is `chain_omits_issuer`. A handshake that omitted an issuer you do not have is `missing_intermediate`. A self-signed root is not flagged just because the server did not send it. Other findings:
+When one certificate's issuer is another certificate in the inventory, the report says so. Matching prefers the authority key identifier, then the issuer DN. If the issuer expires before the leaf, the finding is `issuer_expires_first`: clients stop trusting the leaf when the CA expires. A TLS handshake that omitted an intermediate you have is `chain_omits_issuer`. A handshake that omitted an issuer you do not have is `missing_intermediate`. A self-signed root is not flagged just because the server did not send it. Other findings:
 
 | Code | Meaning |
 | --- | --- |

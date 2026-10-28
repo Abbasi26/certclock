@@ -51,6 +51,8 @@ def load_owners(path: str | Path) -> list[OwnerRule]:
             raise ValueError(
                 f"{path}: rule {index} has unknown match keys: {', '.join(unknown)}"
             )
+        if "any" in match and match["any"] is not True:
+            raise ValueError(f"{path}: rule {index} 'any' must be true")
         owner = rule.get("owner")
         if not isinstance(owner, str) or not owner.strip():
             raise ValueError(f"{path}: rule {index} needs an owner")
