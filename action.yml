@@ -1,0 +1,64 @@
+name: CertClock check
+description: Fail a workflow when TLS endpoints or certificate files are expired or about to expire.
+author: Wasaf Abbasi
+branding:
+  icon: clock
+  color: orange
+inputs:
+  hosts:
+    description: Newline-separated list of `host[:port] [sni]` endpoints.
+    required: false
+    default: ""
+  paths:
+    description: Newline-separated list of certificate files or directories.
+    required: false
+    default: ""
+  warn-days:
+    description: Days left at which a certificate is WARN.
+    required: false
+    default: "30"
+  crit-days:
+    description: Days left at which a certificate is CRIT.
+    required: false
+    default: "7"
+  fail-on:
+    description: "warn, crit, or never"
+    required: false
+    default: crit
+  python-version:
+    description: Python used to run CertClock.
+    required: false
+    default: "3.12"
+outputs:
+  exit-code:
+    description: 0 OK, 1 WARN (with fail-on warn), 2 CRIT, 3 usage error.
+    value: ${{ steps.check.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install CertClock
+      shell: bash
+      run: python -m pip install --quiet "${{ github.action_path }}"
+    - name: Check certificates
+      id: check
+      shell: bash
+      env:
+        CC_HOSTS: ${{ inputs.hosts }}
+        CC_PATHS: ${{ inputs.paths }}
+        CC_WARN: ${{ inputs.warn-days }}
+        CC_CRIT: ${{ inputs.crit-days }}
+        CC_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        args=(check --warn-days "$CC_WARN" --crit-days "$CC_CRIT" --fail-on "$CC_FAIL_ON" --format markdown)
+        while IFS= read -r line; do [ -n "${line// }" ] && args+=(--host "$line"); done <<< "$CC_HOSTS"
+        while IFS= read -r line; do [ -n "${line// }" ] && args+=(--path "$line"); done <<< "$CC_PATHS"
+        set +e
+        certclock "${args[@]}" | tee certclock-check.md
+        code=${PIPESTATUS[0]}
+        set -e
+        cat certclock-check.md >> "$GITHUB_STEP_SUMMARY"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit "$code"
