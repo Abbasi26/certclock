@@ -6,6 +6,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives.serialization import BestAvailableEncryption, NoEncryption, pkcs12
 
 from certpilot.collectors.adcs import AdcsCollector
@@ -36,6 +37,28 @@ def test_hosts_parser_ignores_comments_and_reads_sni():
         ("10.0.0.8", 8443, "app.example.test"),
         ("::1", 443, "localhost"),
     ]
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "vpn.example.test:443",
+        "10.0.0.8:8443",
+        "[::1]:443",
+    ],
+)
+def test_hosts_parser_rejects_extra_fields(endpoint: str):
+    with pytest.raises(
+        ValueError,
+        match=r"^hosts line 2: expected endpoint and optional SNI$",
+    ):
+        parse_hosts(f"# heading\n{endpoint} app.example.test unexpected\n")
+
+    parsed = parse_hosts(
+        f"{endpoint} app.example.test # trailing comment words\n"
+    )
+    assert len(parsed) == 1
+    assert parsed[0].sni == "app.example.test"
 
 
 def test_files_ignore_private_keys_and_skip_encrypted_pfx(tmp_path: Path, now: dt.datetime):

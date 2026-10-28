@@ -36,6 +36,8 @@ def load_hosts(path: str | Path) -> list[Endpoint]:
 
 
 def _parse_line(raw: str, original: str) -> Endpoint:
+    if len(raw.split()) > 2:
+        raise ValueError("expected endpoint and optional SNI")
     sni: str | None = None
     if raw.startswith("["):
         end = raw.find("]")
