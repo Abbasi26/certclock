@@ -21,6 +21,28 @@ jobs:
       - name: Test
         run: pytest -q
 
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make a certificate that is fine and one that expires tomorrow
+        run: |
+          mkdir -p fine soon
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=fine.example.test" -days 200 -keyout /dev/null -out fine/fine.pem
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=soon.example.test" -days 1 -keyout /dev/null -out soon/soon.pem
+      - name: Passing check
+        uses: ./
+        with:
+          paths: fine
+      - name: Failing check (expected)
+        id: failing
+        continue-on-error: true
+        uses: ./
+        with:
+          paths: soon
+      - name: Assert the failing check failed
+        run: test "${{ steps.failing.outcome }}" = "failure"
+
   pester:
     runs-on: windows-latest
     steps:

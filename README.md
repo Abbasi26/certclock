@@ -19,6 +19,48 @@ certclock demo
 
 That writes `certclock-demo/` in under a minute. Open `certclock-demo/index.html`. The data is fictional (`example.test`, Example Laboratory). Add `--offline` to skip the loopback TLS servers. Nothing is sent anywhere. `webhook_sent: no` in the summary means the preview file was written and not posted.
 
+## Gate a pipeline with `certclock check`
+
+`check` is the one-liner for CI, cron, and "is it safe to change this?" moments. It collects ad hoc (or reads an existing `--db`), prints the certificates that need attention, and sets the exit code:
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Nothing at or past the failing level |
+| `1` | Something is at WARN (default 30 days), only with `--fail-on warn` |
+| `2` | Something is at CRIT (default 7 days) or already expired |
+| `3` | Usage or input error |
+
+```bash
+certclock check --host vpn.example.test:443 --path /etc/ssl/certs/app.pem
+certclock check --db certclock.db --fail-on warn --format json
+certclock check --host mail.example.test:443 --warn-days 45 --crit-days 14 --format markdown
+```
+
+Example text output:
+
+```text
+CRIT: 3 certificates, 1 expired, 1 within 7 days, 1 within 30 days
+  CRIT    -3d  gone.example.test  (/etc/ssl/certs/gone.pem)
+  CRIT     4d  edge.example.test  (10.0.0.8:443 SNI edge.example.test)
+  WARN    20d  soon.example.test  (/etc/ssl/certs/soon.pem)
+```
+
+### GitHub Action
+
+```yaml
+- uses: Abbasi26/certclock@main   # pin a tag or commit once v0.2 is released
+  with:
+    hosts: |
+      www.example.test:443
+      api.example.test:443
+    paths: deploy/certs
+    warn-days: "30"
+    crit-days: "7"
+    fail-on: crit        # warn, crit, or never
+```
+
+The step writes the Markdown report to the job summary and fails the job on CRIT. `exit-code` is available as a step output.
+
 ## Real usage
 
 One config file runs every collector that has an input, replaces the local SQLite snapshot, and writes the reports:
@@ -38,6 +80,7 @@ Reports in the output directory:
 | `checkmk.out` | Checkmk local-check text. WARN at 30 days, CRIT at 7 days or already expired |
 | `certclock.prom` | Prometheus textfile snapshot |
 | `inventory.json`, `inventory.csv` | The same rows for anything else |
+| `report.md` | Markdown summary and table, sorted by expiry, for issues, wikis, and chat |
 | `webhook-preview.json` | The notification body. Not sent |
 
 You can also collect one source at a time and report later:
@@ -187,6 +230,8 @@ The pytest suite generates its own certificates and talks only to `127.0.0.1` wh
 Collectors are objects with `collect() -> CollectionResult`. `Inventory.ingest` accepts any object that returns that shape, which is how a caller adds a source the CLI does not know. The built-in collectors are also registered as `certclock.collectors` entry points. `scan` itself runs the built-ins selected by the config file; it does not download or execute third-party code.
 
 ## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for v0.2 progress and good first issues.
 
 - Read-only Intune SCEP/PKCS inventory
 - An optional WinRM runner for the Windows script that already ships

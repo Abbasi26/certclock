@@ -79,6 +79,21 @@ def _parser() -> argparse.ArgumentParser:
     _add_db_args(checkmk)
     checkmk.set_defaults(func=_cmd_checkmk)
 
+    check = commands.add_parser(
+        "check",
+        help="pass/fail gate for CI or cron: exit 2 on CRIT/expired, 1 on WARN with --fail-on warn",
+    )
+    check.add_argument("--db", default=None, help="read an existing inventory")
+    check.add_argument("--host", action="append", default=[], help="host[:port] [sni]; repeatable")
+    check.add_argument("--path", action="append", default=[], help="certificate file or directory; repeatable")
+    check.add_argument("--owners", default=None)
+    check.add_argument("--warn-days", type=int, default=30)
+    check.add_argument("--crit-days", type=int, default=7)
+    check.add_argument("--timeout", type=float, default=8.0)
+    check.add_argument("--fail-on", default="crit", choices=("warn", "crit", "never"))
+    check.add_argument("--format", default="text", choices=("text", "json", "markdown"))
+    check.set_defaults(func=_cmd_check)
+
     notify = commands.add_parser("notify", help="preview or send a webhook")
     _add_db_args(notify)
     notify.add_argument("--url", default="")
@@ -169,6 +184,27 @@ def _cmd_report(args: argparse.Namespace) -> int:
 def _cmd_checkmk(args: argparse.Namespace) -> int:
     sys.stdout.write(render_checkmk(_load_report(args)))
     return 0
+
+
+def _cmd_check(args: argparse.Namespace) -> int:
+    from certclock.check import EXIT_ERROR, render, run_check
+
+    try:
+        outcome = run_check(
+            db=args.db,
+            hosts=args.host,
+            paths=args.path,
+            owners=args.owners,
+            warn_days=args.warn_days,
+            crit_days=args.crit_days,
+            timeout=args.timeout,
+            fail_on=args.fail_on,
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"certclock: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    sys.stdout.write(render(outcome, args.format))
+    return outcome.exit_code
 
 
 def _cmd_notify(args: argparse.Namespace) -> int:

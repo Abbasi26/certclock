@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `certclock check`: CI and cron gate with exit codes 0/1/2/3, ad hoc `--host`/`--path` collection or `--db`, `--fail-on warn|crit|never`, and `text`, `json`, or `markdown` output
+- GitHub Action (`action.yml`) that runs `check` and writes the Markdown report to the job summary
+- `report.md`: Markdown summary written next to the other reports
+- ROADMAP.md with good first issues, issue forms, and a pull request template
 - Renamed the project from `certpilot` to `certclock`: package, CLI, environment variables, files and docs. Entries below use the old name.
 
 ## 0.1.0 - 2026-10-21
