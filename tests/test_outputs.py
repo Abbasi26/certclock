@@ -166,3 +166,24 @@ def test_webhook_send_and_scheme_guard(tmp_path: Path, now: dt.datetime):
     names = {item["common_name"] for item in body["certificates"]}
     assert "later.example.test" not in names
     assert "old.example.test" in names
+
+
+@pytest.mark.parametrize("newline", ["\r", "\n", "\r\n"])
+def test_ics_normalizes_text_newlines(
+    tmp_path: Path, now: dt.datetime, newline: str
+):
+    report = _report(tmp_path, now)
+    cert = next(cert for cert in report.certificates if cert.days_remaining == 4)
+    cert.subject_cn = f"before{newline}after\\,;"
+
+    text = render_ics(report)
+    unfolded = text.replace("\r\n ", "")
+
+    assert (
+        r"SUMMARY:Certificate expires: before\nafter\\\,\;" + "\r\n"
+        in unfolded
+    )
+    without_delimiters = text.replace("\r\n", "")
+    assert "\r" not in without_delimiters
+    assert "\n" not in without_delimiters
+    assert all(len(line.encode("utf-8")) <= 75 for line in text.split("\r\n"))
