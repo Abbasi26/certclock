@@ -33,7 +33,9 @@ class OwnerRule:
 
 
 def load_owners(path: str | Path) -> list[OwnerRule]:
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if raw is None:
+        raw = {}
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: owner file must be a mapping")
     rules = raw.get("rules", [])

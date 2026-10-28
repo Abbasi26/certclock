@@ -261,3 +261,31 @@ def test_owner_any_requires_boolean_true(tmp_path: Path, value: str):
         rules = load_owners(path)
         assert len(rules) == 1
         assert rules[0].match["any"] is True
+
+
+@pytest.mark.parametrize(
+    ("document", "valid"),
+    [
+        ("false\n", False),
+        ("0\n", False),
+        ("''\n", False),
+        ("[]\n", False),
+        ("", True),
+        ("# no ownership rules\n", True),
+        ("null\n", True),
+        ("{}\n", True),
+        ("rules: []\n", True),
+    ],
+)
+def test_owner_document_requires_mapping(
+    tmp_path: Path, document: str, valid: bool
+):
+    path = tmp_path / "owners.yml"
+    path.write_text(document, encoding="utf-8")
+
+    if valid:
+        assert load_owners(path) == []
+    else:
+        with pytest.raises(ValueError) as error:
+            load_owners(path)
+        assert str(error.value) == f"{path}: owner file must be a mapping"
