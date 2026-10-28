@@ -364,3 +364,42 @@ def test_metadata_serial_merges_into_der(tmp_path: Path, now: dt.datetime):
 
 def _iso(value: dt.datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@pytest.mark.parametrize(
+    ("address", "target"),
+    [
+        ("vpn.example.test:443", "vpn.example.test:443"),
+        ("10.0.0.8:8443", "10.0.0.8:8443"),
+        ("[::1]:443", "[::1]:443"),
+        ("[2001:db8::10]:8443", "[2001:db8::10]:8443"),
+    ],
+)
+def test_openssl_connection_target(
+    monkeypatch: pytest.MonkeyPatch, address: str, target: str
+):
+    from unittest.mock import Mock
+
+    from certclock.collectors import tls
+
+    endpoint = parse_hosts(f"{address} app.example.test")[0]
+    run = Mock(return_value=tls.subprocess.CompletedProcess([], 0, stdout=b""))
+    monkeypatch.setattr(tls.shutil, "which", lambda name: "/mock/openssl")
+    monkeypatch.setattr(tls.subprocess, "run", run)
+
+    assert tls._chain_from_openssl(endpoint, timeout=2.5) == []
+
+    run.assert_called_once()
+    assert run.call_args.args == (
+        [
+            "openssl",
+            "s_client",
+            "-connect",
+            target,
+            "-servername",
+            "app.example.test",
+            "-showcerts",
+        ],
+    )
+    assert run.call_args.kwargs["timeout"] == 2.5
+    assert run.call_args.kwargs["env"]["LC_ALL"] == "C"

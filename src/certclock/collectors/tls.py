@@ -114,11 +114,12 @@ def _chain_from_ssl(endpoint: Endpoint, timeout: float) -> tuple[list[bytes], bo
 def _chain_from_openssl(endpoint: Endpoint, timeout: float) -> list[bytes]:
     if shutil.which("openssl") is None:
         return []
+    host = f"[{endpoint.host}]" if ":" in endpoint.host else endpoint.host
     command = [
         "openssl",
         "s_client",
         "-connect",
-        f"{endpoint.host}:{endpoint.port}",
+        f"{host}:{endpoint.port}",
         "-servername",
         endpoint.sni,
         "-showcerts",
