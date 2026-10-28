@@ -1,8 +1,6 @@
 # RESTORE_REPORT — certclock (project: CertClock)
 
 - **GitHub repo:** `Abbasi26/certclock` (project name in code/README remains **CertClock** / CLI `certclock`)
-- **Transcript:** `bc-ffad8a5a-1aab-5a7d-bf25-a572062456de`
-- **Local path:** `/workspace/restore/certclock` (branch `main`)
 - **Author:** Wasaf Abbasi
 - **Ready to push:** yes (local commit only; no push performed)
 - **Commit:** `a680e8a` (full tree restore)

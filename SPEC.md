@@ -1,6 +1,6 @@
 # SPEC — CertClock (GitHub repo: certclock)
 
-Restored from Cursor cloud-agent transcript `bc-ffad8a5a-1aab-5a7d-bf25-a572062456de`.
+Restored from Cursor cloud-agent transcript.
 
 ## Original task prompt
 
