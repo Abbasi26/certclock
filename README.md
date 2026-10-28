@@ -253,7 +253,7 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 progress and good first issues.
 
 ## Status
 
-Version 0.1.0, early but usable. Python package `certclock` (CLI `certclock`). MIT licensed. Every push runs the test suite in GitHub Actions (`.github/workflows/ci.yml`).
+Version 0.2.0, early but usable. Python package `certclock` (CLI `certclock`). MIT licensed. Every push runs the test suite in GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Install
 

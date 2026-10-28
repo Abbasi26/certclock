@@ -102,7 +102,7 @@ def run_demo(output_dir: str | Path, *, live: bool = True) -> DemoResult:
 def format_summary(result: DemoResult) -> str:
     summary = result.summary
     lines = [
-        "CertClock 0.1.0 demo",
+        "CertClock 0.2.0 demo",
         f"live_tls: {'yes' if result.live else 'no'}",
         f"certificates: {summary['total']}",
         f"expired: {summary['expired']}",

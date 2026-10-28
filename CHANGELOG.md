@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-10-28
 
 - `certclock check`: CI and cron gate with exit codes 0/1/2/3, ad hoc `--host`/`--path` collection or `--db`, `--fail-on warn|crit|never`, and `text`, `json`, or `markdown` output
 - GitHub Action (`action.yml`) that runs `check` and writes the Markdown report to the job summary
