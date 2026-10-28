@@ -35,12 +35,13 @@ def scan(config: Config, *, send: bool = False, now: dt.datetime | None = None) 
     moment = now or utcnow()
     database = Path(config.resolve(config.database) or config.database)
     output_dir = Path(config.resolve(config.output_dir) or config.output_dir)
+    collectors = collectors_from_config(config)
     with Inventory(database) as inventory:
         inventory.wipe()
         for warning in config.warnings:
             inventory.add_warning("config", warning)
             inventory.conn.commit()
-        for collector in collectors_from_config(config):
+        for collector in collectors:
             inventory.ingest(collector.collect(), moment)
         report = build_report(inventory, config, moment)
         files = write_reports(report, output_dir)
@@ -117,3 +118,6 @@ def _send(config: Config, report: Report) -> bool:
         )
     send_webhook(config.webhook_url, payload_for(report, config.webhook_format))
     return True
+
+# Not checked: tests were not run in this read-only review.
+# Risk: failures after collector construction can still leave a replaced snapshot.
