@@ -10,15 +10,15 @@ import threading
 
 import pytest
 
-from certpilot.explain import explain
-from certpilot.inventory import Inventory
-from certpilot.mint import mint
-from certpilot.models import CollectionResult, Observation, Report
-from certpilot.outputs import write_reports
-from certpilot.outputs.checkmk import render_checkmk
-from certpilot.outputs.ics import render_ics
-from certpilot.outputs.prometheus import render_prometheus
-from certpilot.outputs.webhook import payload_for, preview_document, send_webhook
+from certclock.explain import explain
+from certclock.inventory import Inventory
+from certclock.mint import mint
+from certclock.models import CollectionResult, Observation, Report
+from certclock.outputs import write_reports
+from certclock.outputs.checkmk import render_checkmk
+from certclock.outputs.ics import render_ics
+from certclock.outputs.prometheus import render_prometheus
+from certclock.outputs.webhook import payload_for, preview_document, send_webhook
 
 
 def _report(tmp_path: Path, now: dt.datetime) -> Report:
@@ -105,17 +105,17 @@ def test_checkmk_and_prometheus(tmp_path: Path, now: dt.datetime):
     assert '2 "Cert old.example.test"' in checkmk
     assert '1 "Cert month.example.test"' in checkmk
     assert '0 "Cert later.example.test"' in checkmk
-    assert '2 "CertPilot summary"' in checkmk
+    assert '2 "CertClock summary"' in checkmk
     prom = render_prometheus(report)
-    assert "certpilot_certificate_days_remaining{" in prom
+    assert "certclock_certificate_days_remaining{" in prom
     assert 'bucket="expired"' in prom
     assert 'code="expired"' in prom
     csv_text = (tmp_path / "unused").as_posix()
     document = json.loads(
-        __import__("certpilot.outputs.tabular", fromlist=["render_json"]).render_json(report)
+        __import__("certclock.outputs.tabular", fromlist=["render_json"]).render_json(report)
     )
     assert document["summary"]["expired"] == 1
-    from certpilot.outputs.tabular import render_csv
+    from certclock.outputs.tabular import render_csv
 
     csv_text = render_csv(report)
     assert "old.example.test" in csv_text
@@ -136,7 +136,7 @@ def test_webhook_preview_does_not_send(monkeypatch: pytest.MonkeyPatch, tmp_path
 def test_webhook_send_and_scheme_guard(tmp_path: Path, now: dt.datetime):
     report = _report(tmp_path, now)
     with pytest.raises(ValueError, match="http"):
-        send_webhook("file:///tmp/certpilot-should-not-write", payload_for(report, "generic"))
+        send_webhook("file:///tmp/certclock-should-not-write", payload_for(report, "generic"))
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802 - stdlib name
@@ -162,7 +162,7 @@ def test_webhook_send_and_scheme_guard(tmp_path: Path, now: dt.datetime):
         thread.join(timeout=2)
     assert status == 204
     body = json.loads(Handler.body)
-    assert body["tool"] == "certpilot"
+    assert body["tool"] == "certclock"
     names = {item["common_name"] for item in body["certificates"]}
     assert "later.example.test" not in names
     assert "old.example.test" in names

@@ -1,0 +1,46 @@
+---
+# Read-only CertClock collector for Linux certificate files.
+# It does not change remote certificates. Ansible copies this script to a
+# temporary directory on each host, runs it, and deletes that copy.
+#
+#   ansible-playbook certclock-linux.yml -i inventory.ini
+#
+# inventory.ini:
+#   [certclock_linux]
+#   web01.example.test
+#
+# Import the JSON CertClock writes on the controller:
+#   certclock import linux --db certclock.db ./certclock-linux/web01.example.test.json
+- name: Collect certificate metadata for CertClock
+  hosts: certclock_linux
+  gather_facts: false
+  become: false
+  vars:
+    certclock_paths:
+      - /etc/ssl
+      - /etc/pki
+    certclock_output_dir: ./certclock-linux
+  tasks:
+    - name: Read certificate metadata
+      ansible.builtin.script: >-
+        {{ playbook_dir }}/collect_linux_certs.py
+        {{ certclock_paths | join(' ') }}
+      register: certclock_collect
+      changed_when: false
+      args:
+        executable: python3
+
+    - name: Create the local output directory
+      ansible.builtin.file:
+        path: "{{ certclock_output_dir }}"
+        state: directory
+      delegate_to: localhost
+      connection: local
+
+    - name: Save the JSON on the controller
+      ansible.builtin.copy:
+        dest: "{{ certclock_output_dir }}/{{ inventory_hostname }}.json"
+        content: "{{ certclock_collect.stdout }}"
+      delegate_to: localhost
+      connection: local
+      changed_when: false

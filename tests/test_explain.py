@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from certpilot.dates import bucket_for, days_remaining
-from certpilot.explain import explain, hostname_matches
-from certpilot.inventory import Inventory
-from certpilot.mint import mint, mint_sha1
-from certpilot.models import CollectionResult, Observation, StoredCert, StoredObs
-from certpilot.owners import OwnerRule, assign_owners, load_owners
+from certclock.dates import bucket_for, days_remaining
+from certclock.explain import explain, hostname_matches
+from certclock.inventory import Inventory
+from certclock.mint import mint, mint_sha1
+from certclock.models import CollectionResult, Observation, StoredCert, StoredObs
+from certclock.owners import OwnerRule, assign_owners, load_owners
 
 
 def test_bucket_boundaries(now: dt.datetime):

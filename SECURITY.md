@@ -1,6 +1,6 @@
 # Security policy
 
-CertPilot reads certificate metadata and writes a local report. It is not a scanner you point at networks you do not administer.
+CertClock reads certificate metadata and writes a local report. It is not a scanner you point at networks you do not administer.
 
 ## Reporting a vulnerability
 
@@ -16,6 +16,6 @@ It does not renew certificates, change stores, or install trust. Password-protec
 
 ## Data
 
-The database and the reports contain host names, file paths, subjects, and expiry dates. Keep them with the same care as any other inventory export. CertPilot does not send that data anywhere except the webhook you explicitly enable.
+The database and the reports contain host names, file paths, subjects, and expiry dates. Keep them with the same care as any other inventory export. CertClock does not send that data anywhere except the webhook you explicitly enable.
 
-Do not commit webhook URLs, `certpilot.db`, or report directories. The example configuration ships with `webhook.enabled: false` and an empty URL.
+Do not commit webhook URLs, `certclock.db`, or report directories. The example configuration ships with `webhook.enabled: false` and an empty URL.

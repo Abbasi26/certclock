@@ -1,15 +1,15 @@
-# RESTORE_REPORT — certclock (project: CertPilot)
+# RESTORE_REPORT — certclock (project: CertClock)
 
-- **GitHub repo:** `Abbasi26/certclock` (project name in code/README remains **CertPilot** / CLI `certpilot`)
+- **GitHub repo:** `Abbasi26/certclock` (project name in code/README remains **CertClock** / CLI `certclock`)
 - **Transcript:** `bc-ffad8a5a-1aab-5a7d-bf25-a572062456de`
 - **Local path:** `/workspace/restore/certclock` (branch `main`)
-- **Author:** Wasaf Abbasi `<95940455+Abbasi26@users.noreply.github.com>`
+- **Author:** Wasaf Abbasi
 - **Ready to push:** yes (local commit only; no push performed)
 - **Commit:** `a680e8a` (full tree restore)
 
 ## What came from the transcript
 
-- Full source tree under `src/certpilot/` (collectors, outputs, bundled PowerShell/Linux helpers), `examples/`, tests (pytest + Pester), docs, `pyproject.toml`, CI, `.gitignore`
+- Full source tree under `src/certclock/` (collectors, outputs, bundled PowerShell/Linux helpers), `examples/`, tests (pytest + Pester), docs, `pyproject.toml`, CI, `.gitignore`
 - Reconstructed by replaying 92 `search_replace` diffs (newline-safe applicator)
 - `SPEC.md` = original cloud-agent task prompt
 - Two `/tmp` openssl helper configs from shell heredocs were intentionally skipped (not part of the repo)
@@ -21,10 +21,10 @@
 ## Tests
 
 - `pytest`: **24/24** pass
-- Pester (`Get-CertPilotStore.Tests.ps1`): **2/2** pass
-- Demo: `python -m certpilot demo --out /tmp/certpilot-demo-fresh` succeeds (live loopback TLS, ~0.55s). Re-running into a dirty `./certpilot-demo` left from a failed partial run can confuse relative owner paths; use a clean `--out` dir.
+- Pester (`Get-CertClockStore.Tests.ps1`): **2/2** pass
+- Demo: `python -m certclock demo --out /tmp/certclock-demo-fresh` succeeds (live loopback TLS, ~0.55s). Re-running into a dirty `./certclock-demo` left from a failed partial run can confuse relative owner paths; use a clean `--out` dir.
 
 ## Gaps / notes
 
 - No GitHub push; parent must push to `Abbasi26/certclock`
-- Bundled `Get-CertPilotStore.ps1` opens Windows cert stores; on Linux the open failure is expected and covered by the Pester test
+- Bundled `Get-CertClockStore.ps1` opens Windows cert stores; on Linux the open failure is expected and covered by the Pester test

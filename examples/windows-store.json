@@ -1,5 +1,5 @@
 {
-  "collector": "certpilot-windows-store",
+  "collector": "certclock-windows-store",
   "version": 1,
   "host": "FILE-01",
   "collected_at": "2026-10-21T12:00:00Z",

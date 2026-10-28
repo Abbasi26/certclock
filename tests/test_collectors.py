@@ -9,17 +9,17 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.serialization import BestAvailableEncryption, NoEncryption, pkcs12
 
-from certpilot.collectors.adcs import AdcsCollector
-from certpilot.collectors.files import FileCollector
-from certpilot.collectors.linux_json import LinuxJsonCollector
-from certpilot.collectors.tls import TlsCollector
-from certpilot.collectors.windows_store import WindowsStoreCollector
-from certpilot.hosts import parse_hosts
-from certpilot.inventory import Inventory
-from certpilot.localtls import LocalTlsServer
-from certpilot.mint import mint
-from certpilot.models import CollectionResult, Observation
-from certpilot.parse import fingerprint_der, pem_certificates
+from certclock.collectors.adcs import AdcsCollector
+from certclock.collectors.files import FileCollector
+from certclock.collectors.linux_json import LinuxJsonCollector
+from certclock.collectors.tls import TlsCollector
+from certclock.collectors.windows_store import WindowsStoreCollector
+from certclock.hosts import parse_hosts
+from certclock.inventory import Inventory
+from certclock.localtls import LocalTlsServer
+from certclock.mint import mint
+from certclock.models import CollectionResult, Observation
+from certclock.parse import fingerprint_der, pem_certificates
 
 
 def test_hosts_parser_ignores_comments_and_reads_sni():
@@ -164,7 +164,7 @@ def test_tls_chain_san_and_missing_intermediate(now: dt.datetime, tmp_path: Path
             ),
             now,
         )
-        from certpilot.explain import explain
+        from certclock.explain import explain
 
         rows = {row.subject_cn: row for row in explain(inventory.certificates(), now)}
     vpn = rows["vpn.example.test"]
@@ -215,7 +215,7 @@ def test_adcs_csv_skips_revoked_and_links_issuer(tmp_path: Path, now: dt.datetim
             now,
         )
         inventory.ingest(result, now)
-        from certpilot.explain import explain
+        from certclock.explain import explain
 
         rows = explain(inventory.certificates(), now)
     names = {row.subject_cn for row in rows}
@@ -240,7 +240,7 @@ def test_windows_and_linux_dedupe_with_the_file(tmp_path: Path, now: dt.datetime
     windows.write_text(
         json.dumps(
             {
-                "collector": "certpilot-windows-store",
+                "collector": "certclock-windows-store",
                 "host": "FILE-01",
                 "certificates": {
                     "store_location": "LocalMachine",

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from certpilot.dates import utcnow
-from certpilot.mint import Minted, mint
+from certclock.dates import utcnow
+from certclock.mint import Minted, mint
 
 
 @pytest.fixture

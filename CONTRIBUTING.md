@@ -1,6 +1,6 @@
 # Contributing
 
-CertPilot is a local, read-only inventory. Changes should stay that way unless a new action has its own explicit switch and prints a preview before it does anything.
+CertClock is a local, read-only inventory. Changes should stay that way unless a new action has its own explicit switch and prints a preview before it does anything.
 
 ## Setup
 
@@ -29,4 +29,4 @@ Invoke-Pester -Path tests/powershell -CI
 
 ## Pull requests
 
-Describe what a user can now see in the timeline or the exports. Run pytest. If you touch `Get-CertPilotStore.ps1`, run the Pester file too.
+Describe what a user can now see in the timeline or the exports. Run pytest. If you touch `Get-CertClockStore.ps1`, run the Pester file too.

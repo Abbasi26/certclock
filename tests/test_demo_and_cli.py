@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from certpilot.cli import main
-from certpilot.demo import run_demo
+from certclock.cli import main
+from certclock.demo import run_demo
 
 
 def test_demo_offline_is_fast_and_keeps_keys_out(tmp_path: Path):
@@ -72,7 +72,7 @@ def test_cli_scan_and_checkmk(tmp_path: Path):
         "webhook": {"enabled": False, "url": "", "format": "generic"},
     }
     # inventory.json is a report, not a linux export. Build a real config from the demo db via report.
-    config_path = tmp_path / "certpilot.yml"
+    config_path = tmp_path / "certclock.yml"
     owners = tmp_path / "owners.yml"
     owners.write_text(
         yaml.safe_dump({"rules": [{"owner": "mail-team", "service": "mail", "match": {"any": True}}]}),
@@ -99,7 +99,7 @@ def test_cli_scan_and_checkmk(tmp_path: Path):
     assert main(["checkmk", "--db", str(db), "--owners", str(owners)]) == 0
     exported = tmp_path / "collectors"
     assert main(["export-collectors", "--dest", str(exported)]) == 0
-    assert (exported / "Get-CertPilotStore.ps1").is_file()
+    assert (exported / "Get-CertClockStore.ps1").is_file()
     assert (exported / "collect_linux_certs.py").is_file()
     preview = json.loads((tmp_path / "scan-out" / "webhook-preview.json").read_text(encoding="utf-8"))
     assert preview["sent"] is False
@@ -108,7 +108,7 @@ def test_cli_scan_and_checkmk(tmp_path: Path):
 def test_cli_notify_requires_send(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     demo = tmp_path / "demo"
     assert main(["demo", "--offline", "--out", str(demo)]) == 0
-    db = demo / "certpilot.db"
+    db = demo / "certclock.db"
     assert main(["notify", "--db", str(db), "--preview"]) == 0
     captured = capsys.readouterr()
     assert "webhook_sent: no" in captured.out
@@ -116,8 +116,8 @@ def test_cli_notify_requires_send(tmp_path: Path, capsys: pytest.CaptureFixture[
 
 
 def test_linux_collector_script_emits_metadata_only(tmp_path: Path):
-    script = Path(__file__).resolve().parents[1] / "src" / "certpilot" / "bundled" / "collect_linux_certs.py"
-    from certpilot.mint import mint
+    script = Path(__file__).resolve().parents[1] / "src" / "certclock" / "bundled" / "collect_linux_certs.py"
+    from certclock.mint import mint
     import datetime as dt
 
     now = dt.datetime.now(dt.timezone.utc)
@@ -139,7 +139,7 @@ def test_linux_collector_script_emits_metadata_only(tmp_path: Path):
     assert "BEGIN EC PRIVATE KEY" not in completed.stdout
     document = json.loads(completed.stdout)
     assert document["host"] == "web01.example.test"
-    assert document["collector"] == "certpilot-linux-files"
+    assert document["collector"] == "certclock-linux-files"
     assert len(document["certificates"]) == 1
     cert = document["certificates"][0]
     assert cert["subject"] == "CN=linux.example.test"
@@ -151,7 +151,7 @@ def test_linux_collector_script_emits_metadata_only(tmp_path: Path):
 def test_entry_points_are_registered():
     from importlib.metadata import entry_points
 
-    found = entry_points(group="certpilot.collectors")
+    found = entry_points(group="certclock.collectors")
     names = {item.name for item in found}
     assert {"tls", "files", "windows", "adcs", "linux"} <= names
 

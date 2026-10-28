@@ -1,5 +1,5 @@
 {
-  "collector": "certpilot-linux-files",
+  "collector": "certclock-linux-files",
   "version": 1,
   "host": "web01.example.test",
   "collected_at": "2026-10-21T12:00:00Z",
