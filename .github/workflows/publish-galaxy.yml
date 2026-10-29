@@ -1,0 +1,77 @@
+name: Publish Ansible collection
+
+# Builds the abbasi26.certclock collection on a release tag (v*) or manually.
+# It publishes to Ansible Galaxy only when the repository secret GALAXY_API_KEY
+# is set. Without it the collection is built and checked, and nothing is uploaded.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to Ansible Galaxy (otherwise build and check only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: galaxy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  collection:
+    name: Build, check, publish
+    runs-on: ubuntu-latest
+    env:
+      GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ansible-core
+        run: python -m pip install --disable-pip-version-check "ansible-core>=2.15,<2.20" pyyaml
+
+      - name: Check versions
+        run: |
+          python - <<'PY'
+          import os, sys, tomllib, yaml
+          galaxy = yaml.safe_load(open('ansible/collection/galaxy.yml'))['version']
+          package = tomllib.load(open('pyproject.toml', 'rb'))['project']['version']
+          print(f'galaxy.yml {galaxy}, pyproject.toml {package}')
+          if galaxy != package:
+              sys.exit('galaxy.yml and pyproject.toml versions differ')
+          if os.environ.get('GITHUB_REF_TYPE') == 'tag':
+              tag = os.environ['GITHUB_REF_NAME'].removeprefix('v')
+              if tag != galaxy:
+                  sys.exit(f'tag v{tag} does not match collection version {galaxy}')
+          PY
+
+      - name: Build collection
+        run: ./ansible/build-collection.sh
+
+      - name: Install and syntax-check the playbook
+        run: |
+          tmp="$RUNNER_TEMP/collections"
+          ansible-galaxy collection install dist/abbasi26-certclock-*.tar.gz -p "$tmp" --force
+          printf '[certclock_linux]\nweb01.example.test\n' > "$RUNNER_TEMP/inventory.ini"
+          ANSIBLE_COLLECTIONS_PATH="$tmp" ansible-playbook abbasi26.certclock.certclock_linux \
+            -i "$RUNNER_TEMP/inventory.ini" --syntax-check
+          test -f "$tmp/ansible_collections/abbasi26/certclock/playbooks/collect_linux_certs.py"
+
+      - name: Publish
+        run: |
+          if [ -z "${GALAXY_API_KEY}" ]; then
+            echo "::notice::GALAXY_API_KEY is not set. Built and checked only; nothing was published."
+            exit 0
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${{ inputs.publish }}" != "true" ]; then
+            echo "::notice::Manual run without publish. Built and checked only."
+            exit 0
+          fi
+          ansible-galaxy collection publish dist/abbasi26-certclock-*.tar.gz --api-key "${GALAXY_API_KEY}"

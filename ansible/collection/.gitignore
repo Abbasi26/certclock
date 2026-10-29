@@ -1,0 +1,4 @@
+# Filled in by ../build-collection.sh from src/certclock/bundled/ and the repo LICENSE.
+playbooks/
+LICENSE
+*.tar.gz

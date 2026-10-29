@@ -145,6 +145,8 @@ certclock import linux --db certclock.db ./certclock-linux/web01.example.test.js
 
 Inventory group name: `certclock_linux`. Default search paths are `/etc/ssl` and `/etc/pki`. Override `certclock_paths`. The remote script shells out to `openssl`, prints JSON on stdout, and never prints a private key. You can run `collect_linux_certs.py` by hand on a host without Ansible.
 
+The same playbook is also packaged as the Ansible collection `abbasi26.certclock` (sources in [`ansible/collection`](ansible/collection), built by `ansible/build-collection.sh`). Once it is published on Ansible Galaxy: `ansible-galaxy collection install abbasi26.certclock`, then `ansible-playbook abbasi26.certclock.certclock_linux -i inventory.ini`.
+
 ### Owners and dependencies
 
 `owners.yml` is applied when the report is built, so editing it does not require another collection. The first matching rule wins. Every rule needs a non-empty `match` map. Unknown match keys are an error.
