@@ -34,6 +34,7 @@ That writes `certclock-demo/` in under a minute. Open `certclock-demo/index.html
 certclock check --host vpn.example.test:443 --path /etc/ssl/certs/app.pem
 certclock check --db certclock.db --fail-on warn --format json
 certclock check --host mail.example.test:443 --warn-days 45 --crit-days 14 --format markdown
+certclock check --hosts-file hosts.txt --warn-days 45 --crit-days 14 --format markdown
 ```
 
 Example text output:
