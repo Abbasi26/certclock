@@ -41,8 +41,8 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
         lines += [
             "## Certificates by expiry",
             "",
-            "| Status | Common name | Days left | Expires | Owner | Findings |",
-            "| --- | --- | ---: | --- | --- | --- |",
+            "| Status | Common name | Issuing CA | Days left | Expires | Owner | Findings |",
+            "| --- | --- | --- | ---: | --- | --- | --- |",
         ]
         for cert in shown:
             lines.append(
@@ -51,6 +51,7 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
                     [
                         status_label(cert, report.warn_days, report.crit_days),
                         _cell(cert.subject_cn or cert.fingerprint[:16]),
+                        _cell(cert.issuer or "-"),
                         str(cert.days_remaining),
                         format_datetime(cert.not_after)[:10],
                         _cell(cert.owner or "unassigned"),

@@ -128,6 +128,36 @@ def test_markdown_escapes_pipes_and_limits_rows(tmp_path: Path):
     assert "3 more certificates not shown" in text
 
 
+def test_markdown_lists_issuing_ca_column(tmp_path: Path):
+    from certclock.outputs.markdown import render_markdown
+    from certclock.models import Report, ReportCert
+
+    now = utcnow()
+
+    def cert(cn: str, issuer: str, days: int) -> ReportCert:
+        return ReportCert(
+            fingerprint="0" * 64, serial="1", subject=f"CN={cn}", subject_cn=cn,
+            issuer=issuer, not_before=now, not_after=now + dt.timedelta(days=days),
+            days_remaining=days, bucket="later", sans=[], key_type="ec", key_size=256,
+            signature_algorithm="sha256", self_signed=False, is_ca=False, owner=None,
+            service=None, owner_note=None, dependency_note=None, problems=[], sources=[],
+        )
+
+    report = Report(
+        now,
+        [cert("leaf.example.test", "CN=Example Laboratory Issuing CA", 40)],
+        [],
+        [],
+        90,
+        30,
+        7,
+        30,
+    )
+    text = render_markdown(report)
+    assert "| Common name | Issuing CA |" in text
+    assert "CN=Example Laboratory Issuing CA" in text
+
+
 @pytest.mark.parametrize("fmt", ["text", "json", "markdown"])
 def test_check_formats_do_not_leak_keys(tmp_path: Path, capsys, fmt: str):
     now = utcnow()
