@@ -8,6 +8,14 @@ A gateway certificate expired overnight, and the same certificate was also sitti
 
 Public TLS lifetimes are already down to 200 days (since 15 March 2026) and are scheduled to reach 47 days in 2029 ([CA/Browser Forum baseline requirements](https://cabforum.org/working-groups/server/baseline-requirements/requirements/)). The 7, 30, and 90 day windows are the ones operations teams actually page on.
 
+## Demo video
+
+[![Demo video for certclock](docs/media/brag.jpg)](docs/media/brag.mp4)
+
+CertClock reads the certificate sources you already have and puts them on one local timeline. The part that matters: it tells you which leaf dies when its CA does. (Click the image to play the video.)
+
+Music: Sascha Ende ([ende.app](https://ende.app)), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## Quickstart
 
 ```bash
