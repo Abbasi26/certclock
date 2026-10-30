@@ -135,3 +135,45 @@ def test_check_formats_do_not_leak_keys(tmp_path: Path, capsys, fmt: str):
     (tmp_path / "bundle.pem").write_bytes(minted.pem + minted.key_pem)
     main(["check", "--path", str(tmp_path), "--format", fmt])
     assert "PRIVATE KEY" not in capsys.readouterr().out
+
+
+def test_markdown_report_shows_issuer_column(tmp_path: Path, capsys):
+    """The report table names the issuing CA and marks it when it expires first."""
+    from certclock.inventory import Inventory
+    from certclock.outputs.markdown import render_markdown
+    from certclock.pipeline import build_report
+    from certclock.config import Config
+
+    now = utcnow()
+    issuing = mint(
+        "Example Laboratory Issuing CA",
+        not_before=now - dt.timedelta(days=10),
+        not_after=now + dt.timedelta(days=20),
+        is_ca=True,
+    )
+    leaf = mint(
+        "leaf.example.test",
+        not_before=now - dt.timedelta(days=5),
+        not_after=now + dt.timedelta(days=120),
+        issuer=issuing,
+    )
+    config = Config(database="", horizon_days=90, warn_days=30, crit_days=7, notify_within_days=30, weak_rsa_bits=2048)
+    config._base_dir = Path.cwd()  # noqa: SLF001
+    with Inventory(tmp_path / "out.db") as inventory:
+        from certclock.models import CollectionResult, Observation
+
+        inventory.ingest(
+            CollectionResult(
+                observations=[
+                    Observation(source="file", detail="leaf.pem", der=leaf.der),
+                    Observation(source="file", detail="ca.pem", der=issuing.der),
+                ],
+                replaced_sources=("file",),
+            ),
+            now,
+        )
+        report = build_report(inventory, config, now)
+    text = render_markdown(report)
+    assert "| Status | Common name | Issuer |" in text
+    assert "Example Laboratory Issuing CA (expires first)" in text
+    assert "leaf.example.test" in text
