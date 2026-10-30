@@ -80,7 +80,7 @@ Reports in the output directory:
 | `checkmk.out` | Checkmk local-check text. WARN at 30 days, CRIT at 7 days or already expired |
 | `certclock.prom` | Prometheus textfile snapshot |
 | `inventory.json`, `inventory.csv` | The same rows for anything else |
-| `report.md` | Markdown summary and table, sorted by expiry, for issues, wikis, and chat |
+| `report.md` | Markdown summary and table, sorted by expiry, with the issuing CA column, for issues, wikis, and chat |
 | `webhook-preview.json` | The notification body. Not sent |
 
 You can also collect one source at a time and report later:
