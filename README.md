@@ -1,3 +1,17 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg">
+    <img src="docs/assets/logo-light.svg" alt="certclock" height="64">
+  </picture>
+</p>
+
+<p align="center">Catches certificates that expire with their CA, not just on their own.</p>
+
+<p align="center">
+  <img src="docs/assets/readme-hero.png" width="800" alt="Terminal output of certclock demo: 13 fictional certificates by expiry window and issue type, then certclock check --fail-on crit listing CRIT and WARN certificates and exit code 2.">
+</p>
+
 # CertClock
 
 [![CI](https://github.com/Abbasi26/certclock/actions/workflows/ci.yml/badge.svg)](https://github.com/Abbasi26/certclock/actions/workflows/ci.yml)
