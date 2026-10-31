@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -12,8 +15,10 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -24,20 +29,22 @@ jobs:
   action:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Make a certificate that is fine and one that expires tomorrow
         run: |
           mkdir -p fine soon
           openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=fine.example.test" -days 200 -keyout /dev/null -out fine/fine.pem
           openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=soon.example.test" -days 1 -keyout /dev/null -out soon/soon.pem
       - name: Passing check
-        uses: ./
+        uses: ./ # zizmor: ignore[self-repository] composite action under test
         with:
           paths: fine
       - name: Failing check (expected)
         id: failing
         continue-on-error: true
-        uses: ./
+        uses: ./ # zizmor: ignore[self-repository] composite action under test
         with:
           paths: soon
       - name: Assert the failing check failed
@@ -46,7 +53,9 @@ jobs:
   pester:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Test the Windows store collector
         shell: pwsh
         run: |
