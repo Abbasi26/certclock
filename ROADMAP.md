@@ -26,7 +26,7 @@ Small, self-contained tasks. Each one needs a test. Comment on the issue (or ope
 | `check --host` should accept `https://host:port/path` URLs and strip the scheme and path | `src/certclock/hosts.py` |
 | `--hosts-file` option for `check`, reusing `load_hosts` | `src/certclock/check.py`, `src/certclock/cli.py` |
 | `check --format checkmk` so one command can feed Checkmk and CI | `src/certclock/check.py` |
-| Show the issuing CA column in `report.md` | `src/certclock/outputs/markdown.py` |
+| [x] Show the issuing CA column in `report.md` | `src/certclock/outputs/markdown.py` |
 | Add `--limit` to control how many rows `report.md` lists | `src/certclock/outputs/markdown.py` |
 | Example GitHub workflow that checks a list of endpoints every night (`schedule:`) | `examples/` and README |
 | Document `check` in the German summary at the end of the README | `README.md` |

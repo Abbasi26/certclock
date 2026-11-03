@@ -41,8 +41,8 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
         lines += [
             "## Certificates by expiry",
             "",
-            "| Status | Common name | Days left | Expires | Owner | Findings |",
-            "| --- | --- | ---: | --- | --- | --- |",
+            "| Status | Common name | Issuer | Days left | Expires | Owner | Findings |",
+            "| --- | --- | --- | ---: | --- | --- | --- |",
         ]
         for cert in shown:
             lines.append(
@@ -51,6 +51,7 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
                     [
                         status_label(cert, report.warn_days, report.crit_days),
                         _cell(cert.subject_cn or cert.fingerprint[:16]),
+                        _cell(_issuer_label(cert)),
                         str(cert.days_remaining),
                         format_datetime(cert.not_after)[:10],
                         _cell(cert.owner or "unassigned"),
@@ -91,3 +92,16 @@ def status_label(cert: ReportCert, warn_days: int, crit_days: int) -> str:
 
 def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
+
+
+def _issuer_label(cert: ReportCert) -> str:
+    """Short label for the issuing CA, with a note when the dependency is timed."""
+    from certclock.parse import cn_from_subject
+
+    name = cn_from_subject(cert.issuer) or cert.issuer or "-"
+    codes = {problem.code for problem in cert.problems}
+    if "issuer_expires_first" in codes:
+        return f"{name} (expires first)"
+    if "issuer_not_in_inventory" in codes or "missing_intermediate" in codes:
+        return f"{name} (not timed)"
+    return name
