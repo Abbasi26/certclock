@@ -191,6 +191,22 @@ Since Ballot [SC-081v3](https://cabforum.org/2025/04/11/ballot-sc081v3-introduce
 
 `long_validity` uses your own threshold, `max_validity_days` in the config or `--max-validity-days` on `report`, `notify`, `checkmk`, and `check`. The default of 100 days flags what will no longer be issuable publicly from March 2027, so internal templates and renewal automation can be shortened in time. The message also says whether the certificate exceeds the limit that applied on its own issue date. That limit binds public CAs only; for an internal ADCS template it is a hint, and the message names the template. CA certificates are not flagged. `check` lists these certificates as `LONG` lines (`long_validity` in JSON) but does not change its exit code.
 
+### Intune Certificate Connector events
+
+Intune shows the health of the Certificate Connector for Microsoft Intune only in the admin center; Graph offers just the beta `ndesConnector` resource. The connector does log locally. Microsoft Learn documents the log (Applications and Services Logs > Microsoft > Intune > Certificate Connectors, Admin and Operational), the event source `Microsoft-Intune-CertificateConnectors`, and every event ID ([overview, Logging](https://learn.microsoft.com/en-us/intune/fundamentals/certificates/connector/overview#logging), [install](https://learn.microsoft.com/en-us/intune/fundamentals/certificates/connector/setup-connector)).
+
+On the connector server, export the events read-only and evaluate them anywhere:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Get-CertClockIntuneConnector.ps1 -Hours 168 -OutFile intune.json
+```
+
+```bash
+certclock intune-connector --path intune.json --window-hours 24
+```
+
+The export holds event ID, UTC time, level and log name only, no message text (events can name devices, users and thumbprints). The result is `failure` (exit 2) when the newest health upload event is 5002 `HealthMessageUploadFailure` or a documented `*Failure` event occurred in the window, `warning` (exit 1) for 5001 or a documented retry event, no health upload event at all, or a read error, and `ok` (exit 0) otherwise. This is the connector's own view, not the admin-center status. Service state and the connector's client certificate are not checked, because Learn does not document their names for the current connector.
+
 ### Checkmk and Prometheus
 
 `certclock checkmk` prints local-check lines and exits 0. Checkmk reads the status number, not the exit code. Put a shell wrapper on the agent:
@@ -223,6 +239,7 @@ CertClock does not change remote systems. The only write outside the output dire
 | TLS | A network path to `host:port`. No certificate, no login |
 | Files | Read access to the certificate files. A private key in the same PEM is ignored |
 | Windows script | Permission to open the store read-only. LocalMachine stores usually need an administrator. The script does not export keys |
+| Intune connector script | Read access to the connector event log on the connector server (local administrators have it). No Intune or Graph permission |
 | ADCS CSV | Whoever runs `certutil -view` needs read access on the CA. CertClock only reads the file they produce |
 | Ansible | SSH as an account that can read the certificate paths. `become` is off. Ansible stages the collector script in a temp directory on the host |
 | Webhook | Outbound HTTP from the machine running CertClock, and only after `--send` |
