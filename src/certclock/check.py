@@ -23,7 +23,7 @@ from certclock import __version__
 from certclock.collectors.files import FileCollector
 from certclock.collectors.tls import TlsCollector
 from certclock.config import Config
-from certclock.dates import format_datetime, utcnow
+from certclock.dates import format_date, format_datetime, utcnow
 from certclock.hosts import parse_hosts
 from certclock.inventory import Inventory
 from certclock.models import Report
@@ -68,6 +68,7 @@ def run_check(
     owners: str | None = None,
     warn_days: int = 30,
     crit_days: int = 7,
+    max_validity_days: int = 100,
     timeout: float = 8.0,
     fail_on: str = "crit",
 ) -> CheckOutcome:
@@ -83,6 +84,7 @@ def run_check(
         crit_days=crit_days,
         notify_within_days=warn_days,
         weak_rsa_bits=2048,
+        max_validity_days=max_validity_days,
     )
     config._base_dir = Path.cwd()  # noqa: SLF001
     now = utcnow()
@@ -117,6 +119,11 @@ def render_text(outcome: CheckOutcome) -> str:
             f"{cert.days_remaining:>5}d  {cert.subject_cn or cert.fingerprint[:16]}"
             f"  ({', '.join(obs.detail for obs in cert.sources)[:120]})"
         )
+    for cert in _long_validity(report):
+        lines.append(
+            f"  LONG {cert.subject_cn or cert.fingerprint[:16]}: valid "
+            f"{format_date(cert.not_before)} to {format_date(cert.not_after)}"
+        )
     for gap in report.gaps:
         lines.append(f"  GAP  {gap.source} {gap.detail}: {gap.message}")
     return "\n".join(lines) + "\n"
@@ -145,9 +152,27 @@ def render_json_outcome(outcome: CheckOutcome) -> str:
             for cert in sorted(report.certificates, key=lambda c: c.days_remaining)
             if status_code(cert, report.warn_days, report.crit_days) > 0
         ],
+        "long_validity": [
+            {
+                "common_name": cert.subject_cn,
+                "fingerprint": cert.fingerprint,
+                "not_before": format_datetime(cert.not_before),
+                "not_after": format_datetime(cert.not_after),
+                "message": next(p.message for p in cert.problems if p.code == "long_validity"),
+            }
+            for cert in _long_validity(report)
+        ],
         "gaps": [{"source": g.source, "detail": g.detail, "message": g.message} for g in report.gaps],
     }
     return json.dumps(document, indent=2) + "\n"
+
+
+def _long_validity(report) -> list:
+    return [
+        cert
+        for cert in report.certificates
+        if any(problem.code == "long_validity" for problem in cert.problems)
+    ]
 
 
 def render(outcome: CheckOutcome, fmt: str) -> str:

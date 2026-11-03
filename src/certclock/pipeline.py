@@ -61,6 +61,7 @@ def build_report(inventory: Inventory, config: Config, now: dt.datetime) -> Repo
         stored,
         now,
         weak_rsa_bits=config.weak_rsa_bits,
+        max_validity_days=config.max_validity_days,
         owners=assign_owners(stored, rules),
     )
     return Report(

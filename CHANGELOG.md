@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `long_validity` finding: end-entity certificates valid for longer than `max_validity_days` (default 100, `0` off; `--max-validity-days` on the CLI). The message names the CA/Browser Forum SC-081v3 limit for the issue date (398/200/100/47 days) and the ADCS certificate template. `check` lists them without changing the exit code
+
 ## 0.2.0 - 2026-10-28
 
 - `certclock check`: CI and cron gate with exit codes 0/1/2/3, ad hoc `--host`/`--path` collection or `--db`, `--fail-on warn|crit|never`, and `text`, `json`, or `markdown` output
