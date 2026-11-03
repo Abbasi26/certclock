@@ -73,6 +73,19 @@ def test_check_usage_errors_exit_3(tmp_path: Path, capsys):
     assert "certclock:" in capsys.readouterr().err
 
 
+def test_check_unreadable_db_exits_3(tmp_path: Path, capsys):
+    """check --db with a non-SQLite file returns exit 3 and prints error."""
+    not_a_db = tmp_path / "not_a_db.txt"
+    not_a_db.write_text("this is not a sqlite database", encoding="utf-8")
+
+    code = main(["check", "--db", str(not_a_db)])
+    assert code == EXIT_ERROR
+    err = capsys.readouterr().err
+    assert "certclock:" in err
+    # Should not raise an unhandled exception
+    assert "Traceback" not in err
+
+
 def test_check_reads_loopback_tls(tmp_path: Path, capsys):
     now = utcnow()
     minted = mint(
@@ -208,6 +221,63 @@ def test_check_db_merge_preserves_both_gaps_and_warnings(tmp_path: Path):
     assert any(g.source == "tls" and bad_host in g.detail for g in report.gaps)
 
 
+def test_check_db_merge_preserves_prod_and_adhoc_warnings(tmp_path: Path):
+    """Warnings from both prod DB and ad-hoc collection appear in merged report."""
+    prod_db = tmp_path / "prod.db"
+
+    # Create a production DB with a warning AND a valid cert in a single collect
+    # (so the warning isn't replaced by a second collect)
+    bad_pem_prod = tmp_path / "bad_prod.pem"
+    bad_pem_prod.write_text("not a certificate", encoding="utf-8")
+    _cert_file(tmp_path, "prod.example.test", 200)
+    # Collect both the bad file and the valid cert in one go
+    assert main([
+        "collect", "files", "--db", str(prod_db),
+        "--path", str(bad_pem_prod),
+        "--path", str(tmp_path / "prod.example.test.pem"),
+    ]) == 0
+
+    # Now run check with --db and a different bad PEM via --path (ad-hoc warning)
+    bad_pem_adhoc = tmp_path / "bad_adhoc.pem"
+    bad_pem_adhoc.write_text("also not a certificate", encoding="utf-8")
+
+    outcome = run_check(db=str(prod_db), hosts=[], paths=[str(bad_pem_adhoc)], fail_on="never")
+    report = outcome.report
+
+    # Both warnings should appear in the merged report
+    warning_messages = report.warnings
+    assert any("bad_prod.pem" in w and "no certificates found" in w for w in warning_messages), f"Prod warning missing: {warning_messages}"
+    assert any("bad_adhoc.pem" in w and "no certificates found" in w for w in warning_messages), f"Ad-hoc warning missing: {warning_messages}"
+
+
+def test_check_db_merge_preserves_prod_warning_and_adhoc_gap(tmp_path: Path):
+    """Production DB warning and ad-hoc gap both appear in merged report."""
+    prod_db = tmp_path / "prod.db"
+
+    # Create a production DB with a warning AND a valid cert in a single collect
+    bad_pem_prod = tmp_path / "bad_prod.pem"
+    bad_pem_prod.write_text("not a certificate", encoding="utf-8")
+    _cert_file(tmp_path, "prod.example.test", 200)
+    assert main([
+        "collect", "files", "--db", str(prod_db),
+        "--path", str(bad_pem_prod),
+        "--path", str(tmp_path / "prod.example.test.pem"),
+    ]) == 0
+
+    # Now run check with --db and an unreachable host (ad-hoc gap)
+    bad_host = "127.0.0.1:9999"
+    outcome = run_check(db=str(prod_db), hosts=[bad_host], paths=[], fail_on="never", timeout=0.1)
+    report = outcome.report
+
+    # Prod warning should appear
+    warning_messages = report.warnings
+    assert any("bad_prod.pem" in w and "no certificates found" in w for w in warning_messages), f"Prod warning missing: {warning_messages}"
+
+    # Ad-hoc gap should appear
+    gap_details = [g.detail for g in report.gaps]
+    assert any(bad_host in d for d in gap_details), f"Ad-hoc gap missing: {gap_details}"
+
+
 def test_check_without_db_still_uses_temp_db(tmp_path: Path, capsys):
     """No --db: current behaviour unchanged (temp DB only)."""
     _cert_file(tmp_path, "far.example.test", 200)
@@ -235,9 +305,10 @@ def test_check_db_and_path_same_pem_deduplicated(tmp_path: Path):
     assert report.summary()["total"] == 1
     cert = report.certificates[0]
     assert cert.subject_cn == "same.example.test"
-    # Should have both file observations (from DB and from --path)
-    sources = [obs.detail for obs in cert.sources]
-    assert sources.count(str(pem_path)) == 2 or any("same.example.test.pem" in s for s in sources)
+    # Should have a file observation with the PEM path as detail
+    file_sources = [obs for obs in cert.sources if obs.source == "file"]
+    assert len(file_sources) == 1
+    assert file_sources[0].detail == str(pem_path)
 
 
 def test_check_db_file_and_host_same_cert_merged(tmp_path: Path):

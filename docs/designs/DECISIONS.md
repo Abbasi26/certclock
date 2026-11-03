@@ -24,7 +24,7 @@
 
 9. **CHANGELOG entry uses `### Fixed` under `## Unreleased`**: Matches the project's current CHANGELOG.md format.
 
-10. **Error behaviour for unreadable `--db` corrected**: Documented exception type is `sqlite3.OperationalError` (not `OSError`); `_cmd_check` catches `Exception` so exit 3 is preserved.
+10. **Error behaviour for unreadable `--db` corrected**: Documented exception type is `sqlite3.OperationalError` (not `OSError`); `_cmd_check` catches `sqlite3.Error` explicitly so exit 3 is preserved.
 
 ### Consciously Rejected Findings
 

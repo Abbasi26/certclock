@@ -171,7 +171,7 @@ def run_check(
 ### Error Behaviour
 
 - Invalid `--host`/`--path` syntax: existing `ValueError` from `parse_hosts` / `FileCollector` propagates, caught in `_cmd_check` → exit 3.
-- Unreadable `--db` file: `Inventory.__init__` raises `OSError` → caught in `_cmd_check` → exit 3.
+- Unreadable `--db` file: `Inventory.__init__` raises `sqlite3.OperationalError` → caught in `_cmd_check` via `sqlite3.Error` → exit 3.
 - `crit_days > warn_days`: existing validation → exit 3.
 - No `--db`, `--host`, or `--path`: existing validation → exit 3.
 
