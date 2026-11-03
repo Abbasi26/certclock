@@ -24,7 +24,7 @@ from certclock.collectors.files import FileCollector
 from certclock.collectors.tls import TlsCollector
 from certclock.config import Config
 from certclock.dates import format_datetime, utcnow
-from certclock.hosts import parse_hosts
+from certclock.hosts import load_hosts, parse_hosts
 from certclock.inventory import Inventory
 from certclock.models import Report
 from certclock.outputs.markdown import render_markdown, status_code, status_label
@@ -70,9 +70,10 @@ def run_check(
     crit_days: int = 7,
     timeout: float = 8.0,
     fail_on: str = "crit",
+    hosts_file: str | None = None,
 ) -> CheckOutcome:
-    if not db and not hosts and not paths:
-        raise ValueError("pass --db, or at least one --host or --path")
+    if not db and not hosts and not paths and not hosts_file:
+        raise ValueError("pass --db, or at least one --host, --host-file, or --path")
     if crit_days > warn_days:
         raise ValueError("--crit-days must not be larger than --warn-days")
     config = Config(
@@ -89,7 +90,10 @@ def run_check(
     with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
         database = db or str(Path(scratch) / "check.db")
         with Inventory(database) as inventory:
-            if hosts:
+            if hosts_file:
+                endpoints = load_hosts(hosts_file)
+                inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
+            elif hosts:
                 endpoints = parse_hosts("\n".join(hosts))
                 inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
             if paths:
