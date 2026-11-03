@@ -214,3 +214,167 @@ def test_check_without_db_still_uses_temp_db(tmp_path: Path, capsys):
     assert main(["check", "--path", str(tmp_path)]) == EXIT_OK
     out = capsys.readouterr().out
     assert out.startswith("OK: 1 certificates")
+
+
+def test_check_db_and_path_same_pem_deduplicated(tmp_path: Path):
+    """Same PEM in DB and passed via --path -> exactly 1 row, total 1."""
+    prod_db = tmp_path / "prod.db"
+    now = utcnow()
+    minted = mint("same.example.test", not_before=now - dt.timedelta(days=5), not_after=now + dt.timedelta(days=100))
+    pem_path = tmp_path / "same.example.test.pem"
+    pem_path.write_bytes(minted.pem)
+
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(pem_path)]) == 0
+
+    # Run check with --db and --path pointing to the same PEM
+    outcome = run_check(db=str(prod_db), hosts=[], paths=[str(pem_path)], fail_on="never")
+    report = outcome.report
+
+    # Should have exactly 1 certificate
+    assert len(report.certificates) == 1
+    assert report.summary()["total"] == 1
+    cert = report.certificates[0]
+    assert cert.subject_cn == "same.example.test"
+    # Should have both file observations (from DB and from --path)
+    sources = [obs.detail for obs in cert.sources]
+    assert sources.count(str(pem_path)) == 2 or any("same.example.test.pem" in s for s in sources)
+
+
+def test_check_db_file_and_host_same_cert_merged(tmp_path: Path):
+    """File row in DB plus live --host serving same cert -> 1 row with both file and tls observations."""
+    prod_db = tmp_path / "prod.db"
+    now = utcnow()
+    minted = mint("merged.example.test", not_before=now - dt.timedelta(days=5), not_after=now + dt.timedelta(days=100))
+    pem_path = tmp_path / "merged.example.test.pem"
+    pem_path.write_bytes(minted.pem)
+
+    # Put cert in DB via file collector
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(pem_path)]) == 0
+
+    # Serve same cert via TLS
+    with LocalTlsServer(minted.pem, minted.key_pem) as server:
+        outcome = run_check(
+            db=str(prod_db),
+            hosts=[f"127.0.0.1:{server.port} merged.example.test"],
+            paths=[],
+            fail_on="never",
+            timeout=5,
+        )
+    report = outcome.report
+
+    # Should have exactly 1 certificate
+    assert len(report.certificates) == 1
+    cert = report.certificates[0]
+    assert cert.subject_cn == "merged.example.test"
+    # Observations should contain both file and tls sources
+    source_types = {obs.source for obs in cert.sources}
+    assert "file" in source_types
+    assert "tls" in source_types
+
+
+def test_check_db_tls_rows_unchanged_after_adhoc_host(tmp_path: Path):
+    """Existing tls rows in DB stay unchanged after check --db --host <other host>."""
+    import sqlite3
+
+    prod_db = tmp_path / "prod.db"
+    now = utcnow()
+
+    # Create a cert in DB via TLS collector (write hosts file first)
+    minted = mint("prod-tls.example.test", not_before=now - dt.timedelta(days=5), not_after=now + dt.timedelta(days=100))
+    with LocalTlsServer(minted.pem, minted.key_pem) as server:
+        hosts_file = tmp_path / "hosts.txt"
+        hosts_file.write_text(f"127.0.0.1:{server.port} prod-tls.example.test\n")
+        assert main(["collect", "tls", "--db", str(prod_db), "--hosts", str(hosts_file), "--timeout", "5"]) == 0
+
+    # Capture the DB state before check
+    prod_db_bytes_before = prod_db.read_bytes()
+    with sqlite3.connect(prod_db) as conn:
+        conn.row_factory = sqlite3.Row
+        obs_before = conn.execute("SELECT * FROM observations WHERE source = 'tls'").fetchall()
+        certs_before = conn.execute("SELECT * FROM certificates").fetchall()
+
+    # Run check with --db and a DIFFERENT host (unreachable to create a gap)
+    bad_host = "127.0.0.1:9999"
+    run_check(db=str(prod_db), hosts=[bad_host], paths=[], fail_on="never", timeout=0.1)
+
+    # DB should be unchanged
+    prod_db_bytes_after = prod_db.read_bytes()
+    assert prod_db_bytes_after == prod_db_bytes_before
+
+    with sqlite3.connect(prod_db) as conn:
+        conn.row_factory = sqlite3.Row
+        obs_after = conn.execute("SELECT * FROM observations WHERE source = 'tls'").fetchall()
+        certs_after = conn.execute("SELECT * FROM certificates").fetchall()
+
+    # Row counts should match
+    assert len(obs_after) == len(obs_before)
+    assert len(certs_after) == len(certs_before)
+    # Content should match
+    for before, after in zip(obs_before, obs_after):
+        assert dict(before) == dict(after)
+    for before, after in zip(certs_before, certs_after):
+        assert dict(before) == dict(after)
+
+
+def test_check_db_prod_gap_and_adhoc_warning_both_appear(tmp_path: Path):
+    """A production gap/warning still appears next to an ad-hoc warning."""
+    prod_db = tmp_path / "prod.db"
+
+    # Create a prod DB with a gap (unreachable host during collect)
+    bad_host_prod = "127.0.0.1:9998"
+    hosts_file = tmp_path / "hosts_prod.txt"
+    hosts_file.write_text(f"{bad_host_prod}\n")
+    assert main(["collect", "tls", "--db", str(prod_db), "--hosts", str(hosts_file), "--timeout", "0.1"]) == 0
+
+    # Now run check with --db and a DIFFERENT bad host (ad-hoc gap)
+    bad_host_adhoc = "127.0.0.1:9999"
+    outcome = run_check(db=str(prod_db), hosts=[bad_host_adhoc], paths=[], fail_on="never", timeout=0.1)
+    report = outcome.report
+
+    # Should have gaps from both prod and ad-hoc
+    gap_details = [g.detail for g in report.gaps]
+    assert any(bad_host_prod in d for d in gap_details), f"Prod gap missing: {gap_details}"
+    assert any(bad_host_adhoc in d for d in gap_details), f"Ad-hoc gap missing: {gap_details}"
+
+
+def test_check_db_path_leaf_with_issuer_in_db_gets_issuer_expires_first(tmp_path: Path):
+    """A --path leaf whose issuer exists only in --db still gets the issuer_expires_first finding."""
+    prod_db = tmp_path / "prod.db"
+    now = utcnow()
+
+    # Create an issuer CA in the prod DB (expires soon)
+    issuer = mint(
+        "Test Issuing CA",
+        is_ca=True,
+        key="ec",
+        path_length=0,
+        sans=[],
+        not_before=now - dt.timedelta(days=10),
+        not_after=now + dt.timedelta(days=5),  # Expires in 5 days (before leaf)
+    )
+    issuer_pem_path = tmp_path / "issuer.pem"
+    issuer_pem_path.write_bytes(issuer.pem)
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(issuer_pem_path)]) == 0
+
+    # Create a leaf cert that depends on the issuer, valid longer
+    leaf = mint(
+        "leaf.example.test",
+        issuer=issuer,
+        not_before=now - dt.timedelta(days=1),
+        not_after=now + dt.timedelta(days=30),  # Leaf expires in 30 days
+    )
+    leaf_pem_path = tmp_path / "leaf.pem"
+    leaf_pem_path.write_bytes(leaf.pem)
+
+    # Run check with --db (has issuer) and --path (has leaf only)
+    outcome = run_check(db=str(prod_db), hosts=[], paths=[str(leaf_pem_path)], fail_on="never")
+    report = outcome.report
+
+    # Find the leaf cert
+    leaf_certs = [c for c in report.certificates if c.subject_cn == "leaf.example.test"]
+    assert len(leaf_certs) == 1
+    leaf_cert = leaf_certs[0]
+
+    # Should have issuer_expires_first problem
+    problem_codes = {p.code for p in leaf_cert.problems}
+    assert "issuer_expires_first" in problem_codes, f"Missing issuer_expires_first: {problem_codes}"

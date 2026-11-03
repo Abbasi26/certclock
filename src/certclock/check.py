@@ -30,6 +30,54 @@ from certclock.models import Gap, Report
 from certclock.outputs.markdown import render_markdown, status_code, status_label
 from certclock.pipeline import build_report
 
+
+def _deduplicate_certs(certs: list) -> list:
+    """Deduplicate StoredCert entries by SHA-256 fingerprint, merging observations.
+
+    When the same certificate (same fingerprint) appears in both the production
+    database and the temporary ad-hoc database, combine their observations
+    instead of creating duplicate report rows.
+    """
+    from certclock.models import StoredCert
+
+    by_fp: dict[str, StoredCert] = {}
+    for cert in certs:
+        if cert.fingerprint not in by_fp:
+            by_fp[cert.fingerprint] = cert
+        else:
+            # Merge observations: combine both lists, avoiding exact duplicates
+            existing = by_fp[cert.fingerprint]
+            existing_details = {(obs.source, obs.detail) for obs in existing.observations}
+            merged_obs = list(existing.observations)
+            for obs in cert.observations:
+                if (obs.source, obs.detail) not in existing_details:
+                    merged_obs.append(obs)
+                    existing_details.add((obs.source, obs.detail))
+            # Create new StoredCert with merged observations (StoredCert is not frozen)
+            by_fp[cert.fingerprint] = StoredCert(
+                fingerprint=existing.fingerprint,
+                kind=existing.kind,
+                serial=existing.serial,
+                serial_normalized=existing.serial_normalized,
+                subject=existing.subject,
+                subject_cn=existing.subject_cn,
+                subject_normalized=existing.subject_normalized,
+                issuer=existing.issuer,
+                issuer_normalized=existing.issuer_normalized,
+                not_before=existing.not_before,
+                not_after=existing.not_after,
+                sans=existing.sans,
+                key_type=existing.key_type,
+                key_size=existing.key_size,
+                signature_algorithm=existing.signature_algorithm,
+                self_signed=existing.self_signed,
+                is_ca=existing.is_ca,
+                subject_key_id=existing.subject_key_id,
+                authority_key_id=existing.authority_key_id,
+                observations=merged_obs,
+            )
+    return list(by_fp.values())
+
 EXIT_OK = 0
 EXIT_WARN = 1
 EXIT_CRIT = 2
@@ -116,7 +164,7 @@ def run_check(
                 temp_warnings = temp_inventory.warnings()
 
         # Merge certificates, gaps, warnings
-        all_certs = prod_certs + temp_certs
+        all_certs = _deduplicate_certs(prod_certs + temp_certs)
         all_gaps = prod_gaps + temp_gaps
         all_warnings = prod_warnings + temp_warnings
 
@@ -154,6 +202,10 @@ def _build_merged_report(
     owners_file = config.resolve(config.owners_file)
     if owners_file:
         rules = load_owners(owners_file)
+
+    # Deduplicate by fingerprint and merge observations
+    certs = _deduplicate_certs(certs)
+
     rows = explain(
         certs,
         now,

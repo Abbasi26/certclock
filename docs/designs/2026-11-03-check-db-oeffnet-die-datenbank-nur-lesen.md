@@ -33,7 +33,7 @@ The `run_check` function in `check.py` already creates a temporary directory whe
 3. If `db` is `None`:
    - Current behaviour (temporary database only) unchanged.
 
-The merge is done at the `Report` level: `build_report` already accepts an `Inventory` object. We create two `Inventory` instances (one for the production DB opened read-only, one for the temp DB), collect certificates from both, and pass a combined list to a new `Report` constructor or a helper that merges two `Report` objects. Since `Report` is a dataclass with a flat certificate list, merging is a simple list concatenation followed by re-sorting.
+The merge is done at the `StoredCert` level: we collect `StoredCert` objects from both inventories, **deduplicate by SHA-256 fingerprint** (merging observations from both sources), then pass the combined list to `explain()` to build the report. This preserves cross-inventory issuer matching (e.g., leaf in temp DB with issuer only in prod DB) and ensures the same certificate is not double-counted when it exists in both databases (common case: scheduled `collect` then ad-hoc `check --path`).
 
 ## Alternatives Considered
 
@@ -73,7 +73,8 @@ The chosen approach (merge in memory, temp DB for ad-hoc data) touches only `che
 
 **Functions to modify:**
 - `run_check` (lines 63–100)
-- Helper: new `_merge_reports` or inline merge logic
+- Helper: new `_deduplicate_certs` to merge observations by fingerprint
+- Helper: `_build_merged_report` to build report from deduplicated certs via `explain()`
 
 **No other files changed.**
 
@@ -139,20 +140,14 @@ def run_check(
                 temp_warnings = temp_inventory.warnings()
 
         # Merge certificates, gaps, warnings
-        all_certs = prod_certs + temp_certs
+        # Deduplicate by SHA-256 fingerprint and merge observations
+        all_certs = _deduplicate_certs(prod_certs + temp_certs)
         all_gaps = prod_gaps + temp_gaps
         all_warnings = prod_warnings + temp_warnings
 
-        # Build a merged Report directly (bypass build_report which expects single Inventory)
-        report = Report(
-            generated_at=now,
-            certificates=all_certs,
-            gaps=all_gaps,
-            warnings=all_warnings,
-            horizon_days=config.horizon_days,
-            warn_days=config.warn_days,
-            crit_days=config.crit_days,
-            notify_within_days=config.notify_within_days,
+        # Build merged report via explain() on deduplicated certs (preserves cross-DB issuer matching)
+        report = _build_merged_report(
+            all_certs, all_gaps, all_warnings, config, now
         )
         return evaluate(report, fail_on)
 
@@ -172,17 +167,6 @@ def run_check(
 #### 2. Import `Report` from `certclock.models` (already imported at line 29)
 
 #### 3. Remove the `config.database = db or ""` assignment for Cases B and C since we don't pass a DB path to `build_report` in those branches. The `Config` object is only used for thresholds; `database` field is unused by `build_report` when we construct `Report` directly.
-
-#### 4. Ensure `Report` constructor accepts the merged lists
-
-Check `src/certclock/models.py` — `Report` is a `@dataclass` with fields:
-- `generated_at`
-- `certificates: list[ReportCert]`
-- `gaps: list[Gap]`
-- `warnings: list[str]`
-- `horizon_days`, `warn_days`, `crit_days`, `notify_within_days`
-
-The constructor call above matches.
 
 ### Error Behaviour
 
