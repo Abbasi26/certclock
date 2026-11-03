@@ -26,7 +26,7 @@ from certclock.config import Config
 from certclock.dates import format_date, format_datetime, utcnow
 from certclock.hosts import parse_hosts
 from certclock.inventory import Inventory
-from certclock.models import Report
+from certclock.models import Gap, Report
 from certclock.outputs.markdown import render_markdown, status_code, status_label
 from certclock.pipeline import build_report
 
@@ -76,8 +76,9 @@ def run_check(
         raise ValueError("pass --db, or at least one --host or --path")
     if crit_days > warn_days:
         raise ValueError("--crit-days must not be larger than --warn-days")
+
     config = Config(
-        database=db or "",
+        database="",
         owners_file=owners,
         horizon_days=max(90, warn_days),
         warn_days=warn_days,
@@ -88,8 +89,46 @@ def run_check(
     )
     config._base_dir = Path.cwd()  # noqa: SLF001
     now = utcnow()
+
+    # Case A: db provided, no ad-hoc collection -> read prod DB only
+    if db and not hosts and not paths:
+        with Inventory(db) as inventory:
+            report = build_report(inventory, config, now)
+        return evaluate(report, fail_on)
+
+    # Case B: db provided AND ad-hoc collection -> merge prod + temp
+    if db and (hosts or paths):
+        with Inventory(db) as prod_inventory:
+            prod_certs = prod_inventory.certificates()
+            prod_gaps = prod_inventory.gaps()
+            prod_warnings = prod_inventory.warnings()
+
+        with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
+            temp_db = str(Path(scratch) / "check.db")
+            with Inventory(temp_db) as temp_inventory:
+                if hosts:
+                    endpoints = parse_hosts("\n".join(hosts))
+                    temp_inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
+                if paths:
+                    temp_inventory.ingest(FileCollector(paths).collect(), now)
+                temp_certs = temp_inventory.certificates()
+                temp_gaps = temp_inventory.gaps()
+                temp_warnings = temp_inventory.warnings()
+
+        # Merge certificates, gaps, warnings
+        all_certs = prod_certs + temp_certs
+        all_gaps = prod_gaps + temp_gaps
+        all_warnings = prod_warnings + temp_warnings
+
+        # Build merged report directly
+        report = _build_merged_report(
+            all_certs, all_gaps, all_warnings, config, now
+        )
+        return evaluate(report, fail_on)
+
+    # Case C: no db -> current behaviour (temp DB only)
     with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
-        database = db or str(Path(scratch) / "check.db")
+        database = str(Path(scratch) / "check.db")
         with Inventory(database) as inventory:
             if hosts:
                 endpoints = parse_hosts("\n".join(hosts))
@@ -98,6 +137,40 @@ def run_check(
                 inventory.ingest(FileCollector(paths).collect(), now)
             report = build_report(inventory, config, now)
     return evaluate(report, fail_on)
+
+
+def _build_merged_report(
+    certs: list,
+    gaps: list[Gap],
+    warnings: list[str],
+    config: Config,
+    now,
+) -> Report:
+    """Build a Report from pre-collected StoredCert objects."""
+    from certclock.explain import explain
+    from certclock.owners import assign_owners, load_owners
+
+    rules = []
+    owners_file = config.resolve(config.owners_file)
+    if owners_file:
+        rules = load_owners(owners_file)
+    rows = explain(
+        certs,
+        now,
+        weak_rsa_bits=config.weak_rsa_bits,
+        max_validity_days=config.max_validity_days,
+        owners=assign_owners(certs, rules),
+    )
+    return Report(
+        generated_at=now,
+        certificates=rows,
+        gaps=gaps,
+        warnings=warnings,
+        horizon_days=config.horizon_days,
+        warn_days=config.warn_days,
+        crit_days=config.crit_days,
+        notify_within_days=config.notify_within_days,
+    )
 
 
 def render_text(outcome: CheckOutcome) -> str:

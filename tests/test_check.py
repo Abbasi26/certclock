@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from certclock.check import EXIT_CRIT, EXIT_ERROR, EXIT_OK, EXIT_WARN
+from certclock.check import EXIT_CRIT, EXIT_ERROR, EXIT_OK, EXIT_WARN, run_check
 from certclock.cli import main
 from certclock.dates import utcnow
 from certclock.localtls import LocalTlsServer
@@ -90,11 +90,17 @@ def test_check_against_existing_db_with_markdown(tmp_path: Path, capsys):
     demo = tmp_path / "demo"
     assert main(["demo", "--offline", "--out", str(demo)]) == 0
     capsys.readouterr()
-    assert main(["check", "--db", str(demo / "certclock.db"), "--format", "markdown"]) == EXIT_CRIT
+    db_path = demo / "certclock.db"
+    db_size = db_path.stat().st_size
+    db_mtime = db_path.stat().st_mtime
+    assert main(["check", "--db", str(db_path), "--format", "markdown"]) == EXIT_CRIT
     out = capsys.readouterr().out
     assert out.startswith("# CertClock report")
     assert "| Expired |" in out
     assert "| CRIT |" in out
+    # DB unchanged
+    assert db_path.stat().st_size == db_size
+    assert db_path.stat().st_mtime == db_mtime
 
 
 def test_report_writes_markdown_file(tmp_path: Path):
@@ -135,3 +141,76 @@ def test_check_formats_do_not_leak_keys(tmp_path: Path, capsys, fmt: str):
     (tmp_path / "bundle.pem").write_bytes(minted.pem + minted.key_pem)
     main(["check", "--path", str(tmp_path), "--format", fmt])
     assert "PRIVATE KEY" not in capsys.readouterr().out
+
+
+def test_check_db_read_only_no_host_path(tmp_path: Path, capsys):
+    """--db alone reads production DB and never writes to it."""
+    prod_db = tmp_path / "prod.db"
+    _cert_file(tmp_path, "prod.example.test", 200)
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(tmp_path / "prod.example.test.pem")]) == 0
+    prod_size = prod_db.stat().st_size
+    prod_mtime = prod_db.stat().st_mtime
+
+    # Run check --db only
+    assert main(["check", "--db", str(prod_db)]) == EXIT_OK
+
+    # DB unchanged
+    assert prod_db.stat().st_size == prod_size
+    assert prod_db.stat().st_mtime == prod_mtime
+
+
+def test_check_db_with_host_does_not_write_prod_db(tmp_path: Path, capsys):
+    """--db with --host merges in memory; production DB untouched."""
+    prod_db = tmp_path / "prod.db"
+    _cert_file(tmp_path, "prod.example.test", 200)
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(tmp_path / "prod.example.test.pem")]) == 0
+    prod_size = prod_db.stat().st_size
+    prod_mtime = prod_db.stat().st_mtime
+
+    now = utcnow()
+    minted = mint("edge.example.test", not_before=now - dt.timedelta(days=1), not_after=now + dt.timedelta(days=3))
+    with LocalTlsServer(minted.pem, minted.key_pem) as server:
+        code = main(["check", "--db", str(prod_db), "--host", f"127.0.0.1:{server.port} edge.example.test", "--timeout", "5"])
+    assert code == EXIT_CRIT  # edge cert is within 7 days
+
+    # Production DB unchanged
+    assert prod_db.stat().st_size == prod_size
+    assert prod_db.stat().st_mtime == prod_mtime
+
+
+def test_check_db_with_path_does_not_write_prod_db(tmp_path: Path, capsys):
+    """--db with --path merges in memory; production DB untouched."""
+    prod_db = tmp_path / "prod.db"
+    _cert_file(tmp_path, "prod.example.test", 200)
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(tmp_path / "prod.example.test.pem")]) == 0
+    prod_size = prod_db.stat().st_size
+
+    _cert_file(tmp_path, "soon.example.test", 20)
+    assert main(["check", "--db", str(prod_db), "--path", str(tmp_path / "soon.example.test.pem"), "--fail-on", "warn"]) == EXIT_WARN
+
+    assert prod_db.stat().st_size == prod_size
+
+
+def test_check_db_merge_preserves_both_gaps_and_warnings(tmp_path: Path):
+    """Gaps and warnings from both prod and temp DB appear in report."""
+    prod_db = tmp_path / "prod.db"
+    _cert_file(tmp_path, "prod.example.test", 200)
+    assert main(["collect", "files", "--db", str(prod_db), "--path", str(tmp_path / "prod.example.test.pem")]) == 0
+
+    # Unreachable host to create a gap in temp collection
+    bad_host = "127.0.0.1:9999"
+    outcome = run_check(db=str(prod_db), hosts=[bad_host], paths=[], fail_on="never", timeout=0.1)
+    report = outcome.report
+
+    # Prod cert present
+    assert any(c.subject_cn == "prod.example.test" for c in report.certificates)
+    # Gap from unreachable host present
+    assert any(g.source == "tls" and bad_host in g.detail for g in report.gaps)
+
+
+def test_check_without_db_still_uses_temp_db(tmp_path: Path, capsys):
+    """No --db: current behaviour unchanged (temp DB only)."""
+    _cert_file(tmp_path, "far.example.test", 200)
+    assert main(["check", "--path", str(tmp_path)]) == EXIT_OK
+    out = capsys.readouterr().out
+    assert out.startswith("OK: 1 certificates")
