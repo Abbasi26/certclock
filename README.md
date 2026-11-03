@@ -174,8 +174,22 @@ When one certificate's issuer is another certificate in the inventory, the repor
 | `san_mismatch` | The name you connected with is not in the SAN (or the CN, if there is no SAN) |
 | `weak_key` | RSA shorter than 2048 bits (configurable), EC shorter than 256 bits, or any DSA key |
 | `sha1` | Signature algorithm is SHA-1 |
+| `long_validity` | End-entity certificate valid for longer than `max_validity_days` (default 100, `0` turns it off). Names the CA/Browser Forum limit for its issue date and, for ADCS rows, the certificate template |
 | `self_signed` | End-entity certificate, or a self-signed certificate we cannot tell is a CA |
 | `issuer_not_in_inventory` | No chain was observed and the issuer was not collected, so the dependency cannot be timed |
+
+### Validity limits (CA/Browser Forum SC-081v3)
+
+Since Ballot [SC-081v3](https://cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/) the Baseline Requirements (section 6.3.2) cap the validity of publicly trusted TLS server certificates by the date they were issued:
+
+| Issued | Maximum validity |
+| --- | --- |
+| before 15 Mar 2026 | 398 days |
+| from 15 Mar 2026 | 200 days |
+| from 15 Mar 2027 | 100 days |
+| from 15 Mar 2029 | 47 days |
+
+`long_validity` uses your own threshold, `max_validity_days` in the config or `--max-validity-days` on `report`, `notify`, `checkmk`, and `check`. The default of 100 days flags what will no longer be issuable publicly from March 2027, so internal templates and renewal automation can be shortened in time. The message also says whether the certificate exceeds the limit that applied on its own issue date. That limit binds public CAs only; for an internal ADCS template it is a hint, and the message names the template. CA certificates are not flagged. `check` lists these certificates as `LONG` lines (`long_validity` in JSON) but does not change its exit code.
 
 ### Checkmk and Prometheus
 
@@ -287,4 +301,4 @@ MIT. Copyright (c) 2026 Wasaf Abbasi.
 
 ## Kurzfassung (Deutsch)
 
-CertClock ist ein lokales Kommandozeilenwerkzeug ohne Agenten. Es sammelt öffentliche Zertifikatsdaten von TLS-Endpunkten, PEM/DER/PFX-Dateien, einem nur lesenden PowerShell-Export der Windows-Zertifikatsspeicher, einem `certutil -view`-CSV der Microsoft-CA und einem Ansible-Lauf für Linux-Dateien. Dieselbe Zertifikatsdatei wird über den SHA-256-Fingerabdruck zusammengeführt. Ein YAML-Mapping setzt Owner und Dienst. Der Bericht zeigt, welches Blatt von welcher ausstellenden CA abhängt, auch wenn die CA früher abläuft als das Blatt. Ausgaben sind eine HTML-Zeitleiste (7/30/90 Tage), eine ICS-Datei mit Erinnerungen, Checkmk-Local-Check-Text, eine Prometheus-Textdatei, JSON und CSV. Private Schlüssel werden nicht gespeichert, passwortgeschützte PFX-Dateien werden ausgelassen. Es gibt keine Telemetrie. Ein Webhook geht nur mit `--send` hinaus. `certclock demo` zeigt den Ablauf mit erfundenen `example.test`-Daten in unter einer Minute, ohne echte Infrastruktur.
+CertClock ist ein lokales Kommandozeilenwerkzeug ohne Agenten. Es sammelt öffentliche Zertifikatsdaten von TLS-Endpunkten, PEM/DER/PFX-Dateien, einem nur lesenden PowerShell-Export der Windows-Zertifikatsspeicher, einem `certutil -view`-CSV der Microsoft-CA und einem Ansible-Lauf für Linux-Dateien. Dieselbe Zertifikatsdatei wird über den SHA-256-Fingerabdruck zusammengeführt. Ein YAML-Mapping setzt Owner und Dienst. Der Bericht zeigt, welches Blatt von welcher ausstellenden CA abhängt, auch wenn die CA früher abläuft als das Blatt. Ausgaben sind eine HTML-Zeitleiste (7/30/90 Tage), eine ICS-Datei mit Erinnerungen, Checkmk-Local-Check-Text, eine Prometheus-Textdatei, JSON und CSV. Private Schlüssel werden nicht gespeichert, passwortgeschützte PFX-Dateien werden ausgelassen. Es gibt keine Telemetrie. Ein Webhook geht nur mit `--send` hinaus. Der Befund `long_validity` meldet End-Entity-Zertifikate mit einer Laufzeit über `max_validity_days` (Standard 100 Tage) und nennt die CA/B-Forum-Grenze zum Ausstellungsdatum (398/200/100/47 Tage nach SC-081v3) sowie bei ADCS die Vorlage. `certclock demo` zeigt den Ablauf mit erfundenen `example.test`-Daten in unter einer Minute, ohne echte Infrastruktur.

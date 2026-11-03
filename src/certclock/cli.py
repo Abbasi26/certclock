@@ -89,6 +89,12 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("--owners", default=None)
     check.add_argument("--warn-days", type=int, default=30)
     check.add_argument("--crit-days", type=int, default=7)
+    check.add_argument(
+        "--max-validity-days",
+        type=int,
+        default=100,
+        help="flag end-entity certificates valid for longer than this; 0 turns it off",
+    )
     check.add_argument("--timeout", type=float, default=8.0)
     check.add_argument("--fail-on", default="crit", choices=("warn", "crit", "never"))
     check.add_argument("--format", default="text", choices=("text", "json", "markdown"))
@@ -145,6 +151,12 @@ def _add_db_args(parser: argparse.ArgumentParser, *, with_thresholds: bool = Tru
         parser.add_argument("--crit-days", type=int, default=7)
         parser.add_argument("--within", type=int, default=30, help="notification window in days")
         parser.add_argument("--weak-rsa-bits", type=int, default=2048)
+        parser.add_argument(
+            "--max-validity-days",
+            type=int,
+            default=100,
+            help="flag end-entity certificates valid for longer than this; 0 turns it off",
+        )
 
 
 def _add_report_args(parser: argparse.ArgumentParser) -> None:
@@ -197,6 +209,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
             owners=args.owners,
             warn_days=args.warn_days,
             crit_days=args.crit_days,
+            max_validity_days=args.max_validity_days,
             timeout=args.timeout,
             fail_on=args.fail_on,
         )
@@ -278,6 +291,7 @@ def _load_report(args: argparse.Namespace):
         crit_days=getattr(args, "crit_days", 7),
         notify_within_days=getattr(args, "within", 30),
         weak_rsa_bits=getattr(args, "weak_rsa_bits", 2048),
+        max_validity_days=getattr(args, "max_validity_days", 100),
     )
     config._base_dir = Path.cwd()  # noqa: SLF001
     with Inventory(args.db) as inventory:

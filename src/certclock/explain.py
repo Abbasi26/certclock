@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import datetime as dt
 import ipaddress
+import re
 
-from certclock.dates import bucket_for, days_remaining, format_date, relative_expiry
+from certclock.dates import (
+    bucket_for,
+    days_remaining,
+    ensure_utc,
+    format_date,
+    relative_expiry,
+)
 from certclock.models import Problem, ReportCert, StoredCert
 from certclock.parse import is_sha1
 
@@ -129,6 +136,86 @@ def _sha1_problem(cert: StoredCert) -> Problem | None:
     )
 
 
+# CA/Browser Forum Baseline Requirements section 6.3.2 as amended by Ballot
+# SC-081v3: the maximum validity of a publicly trusted TLS server certificate
+# depends on the date it was issued. Each entry is (issued on or after, days).
+# https://cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/
+BR_VALIDITY_SCHEDULE: tuple[tuple[dt.datetime, int], ...] = (
+    (dt.datetime(2029, 3, 15, tzinfo=dt.timezone.utc), 47),
+    (dt.datetime(2027, 3, 15, tzinfo=dt.timezone.utc), 100),
+    (dt.datetime(2026, 3, 15, tzinfo=dt.timezone.utc), 200),
+    (dt.datetime.min.replace(tzinfo=dt.timezone.utc), 398),
+)
+
+_TEMPLATE_RE = re.compile(r"\btemplate (.+?) requester ")
+
+
+def validity_days(not_before: dt.datetime, not_after: dt.datetime) -> float:
+    """Validity period in days, counted inclusively as the Baseline Requirements do."""
+
+    seconds = (ensure_utc(not_after) - ensure_utc(not_before)).total_seconds() + 1
+    return seconds / 86400
+
+
+def br_max_validity_days(issued: dt.datetime) -> int:
+    """Maximum days the CA/B Forum allows for a public TLS certificate issued on ``issued``."""
+
+    moment = ensure_utc(issued)
+    for start, days in BR_VALIDITY_SCHEDULE:
+        if moment >= start:
+            return days
+    return BR_VALIDITY_SCHEDULE[-1][1]
+
+
+def _adcs_templates(cert: StoredCert) -> list[str]:
+    names: list[str] = []
+    for obs in cert.observations:
+        if obs.source != "adcs":
+            continue
+        match = _TEMPLATE_RE.search(obs.detail + " ")
+        if match and match.group(1) != "unspecified" and match.group(1) not in names:
+            names.append(match.group(1))
+    return names
+
+
+def _long_validity_problem(cert: StoredCert, max_days: int) -> Problem | None:
+    if max_days <= 0 or cert.is_ca is True:
+        return None
+    days = validity_days(cert.not_before, cert.not_after)
+    if days <= max_days:
+        return None
+    shown = round(days) if abs(days - round(days)) < 0.01 else round(days, 1)
+    issued = format_date(cert.not_before)
+    br_days = br_max_validity_days(cert.not_before)
+    message = (
+        f"This certificate is valid for {shown} days, longer than the configured limit of "
+        f"{max_days} days."
+    )
+    if days > br_days:
+        message += (
+            f" It also exceeds the {br_days}-day maximum that the CA/Browser Forum Baseline "
+            f"Requirements set for publicly trusted TLS server certificates issued on {issued}, "
+            "so a public CA must not issue it like this; for an internal CA this is a hint."
+        )
+    else:
+        message += (
+            f" For a publicly trusted TLS server certificate issued on {issued} the CA/Browser "
+            f"Forum maximum is {br_days} days."
+        )
+        later = [
+            f"{limit} days for certificates issued from {format_date(start)}"
+            for start, limit in reversed(BR_VALIDITY_SCHEDULE)
+            if start > ensure_utc(cert.not_before)
+        ]
+        if later:
+            message += " It falls to " + " and ".join(later) + "."
+    templates = _adcs_templates(cert)
+    if templates:
+        names = ", ".join(f'"{name}"' for name in templates)
+        message += f" Shorten the validity period of the ADCS certificate template {names}."
+    return Problem("long_validity", message)
+
+
 def _self_signed_problem(cert: StoredCert) -> Problem | None:
     if not cert.self_signed or cert.is_ca is True:
         return None
@@ -202,6 +289,7 @@ def explain(
     now: dt.datetime,
     *,
     weak_rsa_bits: int = 2048,
+    max_validity_days: int = 0,
     owners: dict[str, tuple[str | None, str | None, str | None]] | None = None,
 ) -> list[ReportCert]:
     """Build report rows. ``owners`` maps fingerprint to (owner, service, note)."""
@@ -294,6 +382,9 @@ def explain(
         sha1 = _sha1_problem(cert)
         if sha1 is not None:
             problems.append(sha1)
+        long_validity = _long_validity_problem(cert, max_validity_days)
+        if long_validity is not None:
+            problems.append(long_validity)
         signed = _self_signed_problem(cert)
         if signed is not None:
             problems.append(signed)
