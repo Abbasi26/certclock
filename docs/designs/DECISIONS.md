@@ -16,13 +16,15 @@
 
 5. **Deduplication by fingerprint before `explain()`**: Merged `StoredCert` list is deduped by `fingerprint` to prevent double-counting in `Report.summary()` and duplicate listings when the same cert exists in both DBs (common case: scheduled `collect` then ad-hoc `check --path`).
 
-6. **Config construction moved inside case branches**: `Config` creation is deferred until after the case split so Case B/C can omit the `database` field (or pass `""`) since they construct `Report` directly without `build_report`.
+6. **Case B/C build report via `_build_merged_report`**: The merged `StoredCert` list from production and ad-hoc inventories is deduplicated by SHA-256 fingerprint (merging observations, e.g., `file` + `tls`), then fed to `explain()` inside `_build_merged_report` with owner assignment and threshold parameters. This preserves cross-inventory issuer matching and reuses the existing pipeline.
 
-7. **Acceptance criteria measure file invariance, not open mode**: Criteria assert production DB `mtime`/`size` unchanged — a behavioural check. No criterion verifies read-only open mode (e.g., `PRAGMA query_only`). This is a known gap; the design accepts the weaker invariant.
+7. **SHA-256 deduplication merges duplicates across databases**: When the same certificate exists in both the production DB and ad-hoc inputs, it is counted once; observations from both sources (e.g., `file` and `tls`) are combined. Cross-database issuer matching (leaf from `--path`, issuer only in `--db`) is preserved because `explain()` sees all certificates.
 
-8. **CHANGELOG entry under `## Unreleased`**: Matches existing project convention (no `## Fixed` section).
+8. **Acceptance criteria measure file invariance, not open mode**: Criteria assert production DB `mtime`/`size` unchanged — a behavioural check. No criterion verifies read-only open mode (e.g., `PRAGMA query_only`). This is a known gap; the design accepts the weaker invariant.
 
-9. **Error behaviour for unreadable `--db` corrected**: Documented exception type is `sqlite3.OperationalError` (not `OSError`); `_cmd_check` catches `Exception` so exit 3 is preserved.
+9. **CHANGELOG entry uses `### Fixed` under `## Unreleased`**: Matches the project's current CHANGELOG.md format.
+
+10. **Error behaviour for unreadable `--db` corrected**: Documented exception type is `sqlite3.OperationalError` (not `OSError`); `_cmd_check` catches `Exception` so exit 3 is preserved.
 
 ### Consciously Rejected Findings
 
