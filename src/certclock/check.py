@@ -26,9 +26,57 @@ from certclock.config import Config
 from certclock.dates import format_date, format_datetime, utcnow
 from certclock.hosts import parse_hosts
 from certclock.inventory import Inventory
-from certclock.models import Report
+from certclock.models import Gap, Report
 from certclock.outputs.markdown import render_markdown, status_code, status_label
 from certclock.pipeline import build_report
+
+
+def _deduplicate_certs(certs: list) -> list:
+    """Deduplicate StoredCert entries by SHA-256 fingerprint, merging observations.
+
+    When the same certificate (same fingerprint) appears in both the production
+    database and the temporary ad-hoc database, combine their observations
+    instead of creating duplicate report rows.
+    """
+    from certclock.models import StoredCert
+
+    by_fp: dict[str, StoredCert] = {}
+    for cert in certs:
+        if cert.fingerprint not in by_fp:
+            by_fp[cert.fingerprint] = cert
+        else:
+            # Merge observations: combine both lists, avoiding exact duplicates
+            existing = by_fp[cert.fingerprint]
+            existing_details = {(obs.source, obs.detail) for obs in existing.observations}
+            merged_obs = list(existing.observations)
+            for obs in cert.observations:
+                if (obs.source, obs.detail) not in existing_details:
+                    merged_obs.append(obs)
+                    existing_details.add((obs.source, obs.detail))
+            # Create new StoredCert with merged observations (StoredCert is not frozen)
+            by_fp[cert.fingerprint] = StoredCert(
+                fingerprint=existing.fingerprint,
+                kind=existing.kind,
+                serial=existing.serial,
+                serial_normalized=existing.serial_normalized,
+                subject=existing.subject,
+                subject_cn=existing.subject_cn,
+                subject_normalized=existing.subject_normalized,
+                issuer=existing.issuer,
+                issuer_normalized=existing.issuer_normalized,
+                not_before=existing.not_before,
+                not_after=existing.not_after,
+                sans=existing.sans,
+                key_type=existing.key_type,
+                key_size=existing.key_size,
+                signature_algorithm=existing.signature_algorithm,
+                self_signed=existing.self_signed,
+                is_ca=existing.is_ca,
+                subject_key_id=existing.subject_key_id,
+                authority_key_id=existing.authority_key_id,
+                observations=merged_obs,
+            )
+    return list(by_fp.values())
 
 EXIT_OK = 0
 EXIT_WARN = 1
@@ -76,8 +124,9 @@ def run_check(
         raise ValueError("pass --db, or at least one --host or --path")
     if crit_days > warn_days:
         raise ValueError("--crit-days must not be larger than --warn-days")
+
     config = Config(
-        database=db or "",
+        database="",
         owners_file=owners,
         horizon_days=max(90, warn_days),
         warn_days=warn_days,
@@ -88,8 +137,46 @@ def run_check(
     )
     config._base_dir = Path.cwd()  # noqa: SLF001
     now = utcnow()
+
+    # Case A: db provided, no ad-hoc collection -> read prod DB only
+    if db and not hosts and not paths:
+        with Inventory(db) as inventory:
+            report = build_report(inventory, config, now)
+        return evaluate(report, fail_on)
+
+    # Case B: db provided AND ad-hoc collection -> merge prod + temp
+    if db and (hosts or paths):
+        with Inventory(db) as prod_inventory:
+            prod_certs = prod_inventory.certificates()
+            prod_gaps = prod_inventory.gaps()
+            prod_warnings = prod_inventory.warnings()
+
+        with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
+            temp_db = str(Path(scratch) / "check.db")
+            with Inventory(temp_db) as temp_inventory:
+                if hosts:
+                    endpoints = parse_hosts("\n".join(hosts))
+                    temp_inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
+                if paths:
+                    temp_inventory.ingest(FileCollector(paths).collect(), now)
+                temp_certs = temp_inventory.certificates()
+                temp_gaps = temp_inventory.gaps()
+                temp_warnings = temp_inventory.warnings()
+
+        # Merge certificates, gaps, warnings
+        all_certs = _deduplicate_certs(prod_certs + temp_certs)
+        all_gaps = prod_gaps + temp_gaps
+        all_warnings = prod_warnings + temp_warnings
+
+        # Build merged report directly
+        report = _build_merged_report(
+            all_certs, all_gaps, all_warnings, config, now
+        )
+        return evaluate(report, fail_on)
+
+    # Case C: no db -> current behaviour (temp DB only)
     with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
-        database = db or str(Path(scratch) / "check.db")
+        database = str(Path(scratch) / "check.db")
         with Inventory(database) as inventory:
             if hosts:
                 endpoints = parse_hosts("\n".join(hosts))
@@ -98,6 +185,44 @@ def run_check(
                 inventory.ingest(FileCollector(paths).collect(), now)
             report = build_report(inventory, config, now)
     return evaluate(report, fail_on)
+
+
+def _build_merged_report(
+    certs: list,
+    gaps: list[Gap],
+    warnings: list[str],
+    config: Config,
+    now,
+) -> Report:
+    """Build a Report from pre-collected StoredCert objects."""
+    from certclock.explain import explain
+    from certclock.owners import assign_owners, load_owners
+
+    rules = []
+    owners_file = config.resolve(config.owners_file)
+    if owners_file:
+        rules = load_owners(owners_file)
+
+    # Deduplicate by fingerprint and merge observations
+    certs = _deduplicate_certs(certs)
+
+    rows = explain(
+        certs,
+        now,
+        weak_rsa_bits=config.weak_rsa_bits,
+        max_validity_days=config.max_validity_days,
+        owners=assign_owners(certs, rules),
+    )
+    return Report(
+        generated_at=now,
+        certificates=rows,
+        gaps=gaps,
+        warnings=warnings,
+        horizon_days=config.horizon_days,
+        warn_days=config.warn_days,
+        crit_days=config.crit_days,
+        notify_within_days=config.notify_within_days,
+    )
 
 
 def render_text(outcome: CheckOutcome) -> str:

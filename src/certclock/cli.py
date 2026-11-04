@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from importlib.resources import files
 from pathlib import Path
@@ -213,7 +214,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             fail_on=args.fail_on,
         )
-    except (OSError, ValueError, RuntimeError) as exc:
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(f"certclock: {exc}", file=sys.stderr)
         return EXIT_ERROR
     sys.stdout.write(render(outcome, args.format))

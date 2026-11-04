@@ -4,6 +4,13 @@
 
 - `long_validity` finding: end-entity certificates valid for longer than `max_validity_days` (default 100, `0` off; `--max-validity-days` on the CLI). The message names the CA/Browser Forum SC-081v3 limit for the issue date (398/200/100/47 days) and the ADCS certificate template. `check` lists them without changing the exit code
 
+### Fixed
+
+- `check --db` with `--host`/`--path` no longer writes to the production database; ad-hoc data is collected into a temporary database and merged in memory
+- Certificates from the production DB and ad-hoc inputs are deduplicated by SHA-256 fingerprint with observations merged (e.g., `file` + `tls` sources combined)
+- Cross-database issuer matching works: a leaf from `--path` with issuer only in `--db` gets `issuer_expires_first` finding
+- Unreadable or corrupt `--db` file now exits with code 3 (catches `sqlite3.Error` explicitly)
+
 ## 0.2.0 - 2026-10-28
 
 - `certclock check`: CI and cron gate with exit codes 0/1/2/3, ad hoc `--host`/`--path` collection or `--db`, `--fail-on warn|crit|never`, and `text`, `json`, or `markdown` output
