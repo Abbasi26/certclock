@@ -98,7 +98,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     check.add_argument("--timeout", type=float, default=8.0)
     check.add_argument("--fail-on", default="crit", choices=("warn", "crit", "never"))
-    check.add_argument("--format", default="text", choices=("text", "json", "markdown"))
+    check.add_argument("--format", default="text", choices=("text", "json", "markdown", "checkmk"))
     check.set_defaults(func=_cmd_check)
 
     notify = commands.add_parser("notify", help="preview or send a webhook")
