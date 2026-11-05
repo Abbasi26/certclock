@@ -27,6 +27,7 @@ from certclock.dates import format_date, format_datetime, utcnow
 from certclock.hosts import parse_hosts
 from certclock.inventory import Inventory
 from certclock.models import Gap, Report
+from certclock.outputs.checkmk import render_checkmk
 from certclock.outputs.markdown import render_markdown, status_code, status_label
 from certclock.pipeline import build_report
 
@@ -305,4 +306,6 @@ def render(outcome: CheckOutcome, fmt: str) -> str:
         return render_json_outcome(outcome)
     if fmt == "markdown":
         return render_markdown(outcome.report)
+    if fmt == "checkmk":
+        return render_checkmk(outcome.report)
     return render_text(outcome)
