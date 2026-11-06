@@ -16,9 +16,12 @@ from certclock.collectors.linux_json import LinuxJsonCollector
 from certclock.collectors.tls import TlsCollector
 from certclock.collectors.windows_store import WindowsStoreCollector
 from certclock.config import Config, load_config
-from certclock.dates import utcnow
+from certclock.dates import parse_datetime, utcnow
 from certclock.demo import format_summary, run_demo
 from certclock.hosts import load_hosts
+from certclock.intune_connector import evaluate as evaluate_intune
+from certclock.intune_connector import format_text as format_intune
+from certclock.intune_connector import load_export as load_intune_export
 from certclock.inventory import Inventory
 from certclock.outputs import write_reports
 from certclock.outputs.checkmk import render_checkmk
@@ -27,6 +30,7 @@ from certclock.pipeline import build_report, scan
 
 _BUNDLED = (
     "Get-CertClockStore.ps1",
+    "Get-CertClockIntuneConnector.ps1",
     "collect_linux_certs.py",
     "certclock-linux.yml",
 )
@@ -136,6 +140,16 @@ def _parser() -> argparse.ArgumentParser:
     linux = import_sub.add_parser("linux")
     _add_import_args(linux)
     linux.set_defaults(func=_cmd_import_linux)
+
+    intune = commands.add_parser(
+        "intune-connector",
+        help="rate a Certificate Connector for Microsoft Intune event export: exit 2 on failure, 1 on warning",
+    )
+    intune.add_argument("--path", required=True, help="JSON written by Get-CertClockIntuneConnector.ps1")
+    intune.add_argument("--window-hours", type=int, default=24)
+    intune.add_argument("--format", default="text", choices=("text", "json"))
+    intune.add_argument("--as-of", default="", help="evaluate as of this UTC time (ISO-8601) instead of now")
+    intune.set_defaults(func=_cmd_intune_connector)
 
     export = commands.add_parser("export-collectors", help="copy the PowerShell and Ansible collectors")
     export.add_argument("--dest", required=True)
@@ -255,6 +269,16 @@ def _cmd_import_adcs(args: argparse.Namespace) -> int:
 
 def _cmd_import_linux(args: argparse.Namespace) -> int:
     return _ingest(args.db, args.fresh, LinuxJsonCollector([args.path]))
+
+
+def _cmd_intune_connector(args: argparse.Namespace) -> int:
+    now = parse_datetime(args.as_of) if args.as_of else utcnow()
+    health = evaluate_intune(load_intune_export(args.path), now, window_hours=args.window_hours)
+    if args.format == "json":
+        print(json.dumps(health.to_dict(), indent=2))
+    else:
+        print(format_intune(health))
+    return health.exit_code
 
 
 def _cmd_export(args: argparse.Namespace) -> int:

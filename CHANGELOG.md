@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `certclock intune-connector` and `Get-CertClockIntuneConnector.ps1`: read-only export of the Certificate Connector for Microsoft Intune events (source `Microsoft-Intune-CertificateConnectors`) and a rating from the event IDs documented on Microsoft Learn: health upload 5000/5001/5002, `*Failure` and retry events. Exit 0/1/2. No message text is exported
 - `long_validity` finding: end-entity certificates valid for longer than `max_validity_days` (default 100, `0` off; `--max-validity-days` on the CLI). The message names the CA/Browser Forum SC-081v3 limit for the issue date (398/200/100/47 days) and the ADCS certificate template. `check` lists them without changing the exit code
 
 ### Fixed
