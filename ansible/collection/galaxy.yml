@@ -1,0 +1,30 @@
+# Ansible collection abbasi26.certclock.
+# The playbook and the collector script are copied in from
+# src/certclock/bundled/ by ansible/build-collection.sh, so the collection always
+# ships the same files as the Python package. Keep version in step with pyproject.toml.
+namespace: abbasi26
+name: certclock
+version: 0.2.0
+readme: README.md
+authors:
+  - Wasaf Abbasi
+description: >-
+  Read-only playbook that collects certificate metadata (never private keys)
+  from Linux hosts as JSON for the CertClock expiry timeline.
+license:
+  - MIT
+tags:
+  - certificates
+  - tls
+  - pki
+  - monitoring
+  - security
+  - linux
+repository: https://github.com/Abbasi26/certclock
+documentation: https://github.com/Abbasi26/certclock#readme
+homepage: https://github.com/Abbasi26/certclock
+issues: https://github.com/Abbasi26/certclock/issues
+dependencies: {}
+build_ignore:
+  - '*.tar.gz'
+  - .gitignore
