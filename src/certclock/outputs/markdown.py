@@ -17,8 +17,8 @@ _BUCKET_LABELS = {
 def render_markdown(report: Report, *, limit: int | None = 50) -> str:
     """Return a GitHub-flavoured Markdown report.
 
-    ``limit`` caps the certificate table so the text stays postable. ``None``
-    lists every certificate.
+    ``limit`` caps the certificate table so the text stays postable. ``0`` or
+    ``None`` lists every certificate.
     """
     counts = report.summary()
     lines = [
@@ -36,7 +36,8 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
     lines.append("")
 
     ordered = sorted(report.certificates, key=lambda cert: (cert.days_remaining, cert.subject_cn))
-    shown = ordered if limit is None else ordered[:limit]
+    unlimited = limit in (0, None)
+    shown = ordered if unlimited else ordered[:limit]
     if shown:
         lines += [
             "## Certificates by expiry",
@@ -59,7 +60,7 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
                 )
                 + " |"
             )
-        if limit is not None and len(ordered) > limit:
+        if not unlimited and len(ordered) > limit:
             lines.append("")
             lines.append(f"_{len(ordered) - limit} more certificates not shown. See inventory.csv._")
         lines.append("")
