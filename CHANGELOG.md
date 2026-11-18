@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Dependabot: weekly Python updates (uv ecosystem) for `pyproject.toml`, `requirements-ci.in` and the hash-pinned `requirements-ci.txt`. `requirements-ci.txt` is now compiled from `requirements-ci.in` so Dependabot can recompile it with hashes.
 - Dependencies: runtime, dev and build requirements in `pyproject.toml` are pinned to exact versions (`==`). CI installs from the hash-pinned `requirements-ci.txt` (`pip install --require-hashes`), then the project itself with `--no-deps`. Prompted by the malicious `agent-framework` 1.26.1/1.26.2 releases on PyPI ([MAL-2026-20101](https://osv.dev/vulnerability/MAL-2026-20101)); none of these projects depend on it.
 - `certclock intune-connector` and `Get-CertClockIntuneConnector.ps1`: read-only export of the Certificate Connector for Microsoft Intune events (source `Microsoft-Intune-CertificateConnectors`) and a rating from the event IDs documented on Microsoft Learn: health upload 5000/5001/5002, `*Failure` and retry events. Exit 0/1/2. No message text is exported
 - `long_validity` finding: end-entity certificates valid for longer than `max_validity_days` (default 100, `0` off; `--max-validity-days` on the CLI). The message names the CA/Browser Forum SC-081v3 limit for the issue date (398/200/100/47 days) and the ADCS certificate template. `check` lists them without changing the exit code
