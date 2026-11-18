@@ -119,6 +119,3 @@ def _send(config: Config, report: Report) -> bool:
         )
     send_webhook(config.webhook_url, payload_for(report, config.webhook_format))
     return True
-
-# Not checked: tests were not run in this read-only review.
-# Risk: failures after collector construction can still leave a replaced snapshot.
