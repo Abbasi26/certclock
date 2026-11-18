@@ -1,0 +1,6 @@
+# Runtime dependencies for the composite action (action.yml), same exact pins as pyproject.toml,
+# plus the setuptools build backend. requirements-action.txt is compiled from this file with uv;
+# Dependabot (uv ecosystem) updates both.
+cryptography==50.0.2
+PyYAML==6.0.3
+setuptools==84.2.1
