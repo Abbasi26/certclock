@@ -15,7 +15,12 @@ from certclock.outputs.tabular import render_csv, render_json
 from certclock.outputs.webhook import preview_document
 
 
-def write_reports(report: Report, output_dir: str | Path) -> dict[str, Path]:
+def write_reports(
+    report: Report,
+    output_dir: str | Path,
+    *,
+    markdown_limit: int | None = 50,
+) -> dict[str, Path]:
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
     files = {
@@ -34,7 +39,9 @@ def write_reports(report: Report, output_dir: str | Path) -> dict[str, Path]:
     files["prometheus"].write_text(render_prometheus(report), encoding="utf-8")
     files["json"].write_text(render_json(report), encoding="utf-8")
     files["csv"].write_text(render_csv(report), encoding="utf-8")
-    files["markdown"].write_text(render_markdown(report), encoding="utf-8")
+    files["markdown"].write_text(
+        render_markdown(report, limit=markdown_limit), encoding="utf-8"
+    )
     files["webhook_preview"].write_text(
         json.dumps(preview_document(report), indent=2) + "\n",
         encoding="utf-8",

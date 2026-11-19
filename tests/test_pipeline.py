@@ -43,7 +43,3 @@ def test_scan_invalid_hosts_preserves_inventory(
 
     assert database.read_bytes() == previous
     assert not output.exists()
-
-
-# Not checked: tests were not run in this read-only review.
-# Risk: failures after collector construction can still leave a replaced snapshot.

@@ -61,6 +61,45 @@ def test_hosts_parser_rejects_extra_fields(endpoint: str):
     assert parsed[0].sni == "app.example.test"
 
 
+@pytest.mark.parametrize(
+    ("url", "expected_host", "expected_port", "expected_sni"),
+    [
+        ("https://vpn.example.test:443", "vpn.example.test", 443, "vpn.example.test"),
+        ("https://vpn.example.test:8443/path", "vpn.example.test", 8443, "vpn.example.test"),
+        ("https://vpn.example.test/", "vpn.example.test", 443, "vpn.example.test"),
+        ("https://vpn.example.test", "vpn.example.test", 443, "vpn.example.test"),
+        ("http://api.example.test:8080/health", "api.example.test", 8080, "api.example.test"),
+        ("https://10.0.0.8:8443/v1/cert", "10.0.0.8", 8443, "10.0.0.8"),
+        ("https://[::1]:443/", "::1", 443, "::1"),
+        ("https://[2001:db8::10]:8443/path", "2001:db8::10", 8443, "2001:db8::10"),
+    ],
+)
+def test_hosts_parser_accepts_urls(
+    url: str, expected_host: str, expected_port: int, expected_sni: str
+):
+    endpoints = parse_hosts(url)
+    assert len(endpoints) == 1
+    assert endpoints[0].host == expected_host
+    assert endpoints[0].port == expected_port
+    assert endpoints[0].sni == expected_sni
+
+
+def test_hosts_parser_url_with_custom_sni():
+    endpoints = parse_hosts("https://vpn.example.test:443/path custom-sni.example.test")
+    assert len(endpoints) == 1
+    assert endpoints[0].host == "vpn.example.test"
+    assert endpoints[0].port == 443
+    assert endpoints[0].sni == "custom-sni.example.test"
+
+
+def test_hosts_parser_rejects_invalid_urls():
+    with pytest.raises(ValueError, match="invalid URL"):
+        parse_hosts("https:///path")
+
+    with pytest.raises(ValueError, match="missing host"):
+        parse_hosts("https://:443/")
+
+
 def test_files_ignore_private_keys_and_skip_encrypted_pfx(tmp_path: Path, now: dt.datetime):
     minted = mint(
         "files.example.test",

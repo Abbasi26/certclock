@@ -17,6 +17,7 @@ from certclock.models import CollectionResult, Observation, Report
 from certclock.outputs import write_reports
 from certclock.outputs.checkmk import render_checkmk
 from certclock.outputs.ics import render_ics
+from certclock.outputs.markdown import render_markdown
 from certclock.outputs.prometheus import render_prometheus
 from certclock.outputs.webhook import payload_for, preview_document, send_webhook
 
@@ -86,6 +87,33 @@ def test_html_is_self_contained_and_escaped(tmp_path: Path, now: dt.datetime):
     assert files["webhook_preview"].read_text(encoding="utf-8")
     preview = json.loads(files["webhook_preview"].read_text(encoding="utf-8"))
     assert preview["sent"] is False
+
+
+def test_markdown_limit_defaults_to_50_and_zero_is_unlimited(
+    tmp_path: Path, now: dt.datetime
+):
+    report = _report(tmp_path, now)
+    report.certificates *= 13
+
+    limited = render_markdown(report)
+    unlimited = render_markdown(report, limit=0)
+
+    assert _certificate_row_count(limited) == 50
+    assert "2 more certificates not shown" in limited
+    assert _certificate_row_count(unlimited) == 52
+    assert "more certificates not shown" not in unlimited
+
+
+def test_write_reports_limits_only_markdown(tmp_path: Path, now: dt.datetime):
+    report = _report(tmp_path, now)
+
+    files = write_reports(report, tmp_path / "limited", markdown_limit=2)
+
+    markdown = files["markdown"].read_text(encoding="utf-8")
+    inventory = json.loads(files["json"].read_text(encoding="utf-8"))
+    assert _certificate_row_count(markdown) == 2
+    assert "2 more certificates not shown" in markdown
+    assert len(inventory["certificates"]) == 4
 
 
 def test_ics_has_reminders_and_folds_long_lines(tmp_path: Path, now: dt.datetime):
@@ -220,3 +248,10 @@ def test_written_ics_preserves_renderer_bytes(tmp_path: Path, now: dt.datetime):
     assert data == render_ics(report).encode("utf-8")
     assert b"\r\r\n" not in data
     assert data.endswith(b"\r\n")
+
+
+def _certificate_row_count(text: str) -> int:
+    return sum(
+        line.startswith(("| OK |", "| WARN |", "| CRIT |"))
+        for line in text.splitlines()
+    )

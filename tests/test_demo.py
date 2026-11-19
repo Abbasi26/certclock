@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-import pytest
 
 
 def test_demo_runs_twice_in_same_dir(tmp_path: Path) -> None:
