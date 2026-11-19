@@ -147,13 +147,45 @@ def test_markdown_escapes_pipes_and_limits_rows(tmp_path: Path):
     assert "3 more certificates not shown" in text
 
 
-@pytest.mark.parametrize("fmt", ["text", "json", "markdown"])
+@pytest.mark.parametrize("fmt", ["text", "json", "markdown", "checkmk"])
 def test_check_formats_do_not_leak_keys(tmp_path: Path, capsys, fmt: str):
     now = utcnow()
     minted = mint("bundle.example.test", not_before=now, not_after=now + dt.timedelta(days=2))
     (tmp_path / "bundle.pem").write_bytes(minted.pem + minted.key_pem)
     main(["check", "--path", str(tmp_path), "--format", fmt])
     assert "PRIVATE KEY" not in capsys.readouterr().out
+
+
+def test_check_format_checkmk_matches_checkmk_command(tmp_path: Path, capsys):
+    """check --format checkmk produces the same output as the checkmk command."""
+    demo = tmp_path / "demo"
+    assert main(["demo", "--offline", "--out", str(demo)]) == 0
+    capsys.readouterr()
+    db_path = demo / "certclock.db"
+
+    # Run check --format checkmk with --fail-on never to match checkmk's always-0 behavior
+    code_check = main(["check", "--db", str(db_path), "--format", "checkmk", "--fail-on", "never"])
+    out_check = capsys.readouterr().out
+
+    # Run checkmk command
+    code_checkmk = main(["checkmk", "--db", str(db_path)])
+    out_checkmk = capsys.readouterr().out
+
+    assert code_check == code_checkmk == EXIT_OK
+    assert out_check == out_checkmk
+    assert "CertClock summary" in out_check
+    assert "expires_in_days=" in out_check
+
+
+def test_check_invalid_format_rejected(tmp_path: Path, capsys):
+    """Invalid --format value is rejected by argparse (exit 2)."""
+    _cert_file(tmp_path, "far.example.test", 200)
+    try:
+        main(["check", "--path", str(tmp_path), "--format", "invalid"])
+    except SystemExit as e:
+        assert e.code == 2  # argparse exits with 2 for invalid choices
+    err = capsys.readouterr().err
+    assert "invalid choice" in err or "unrecognized" in err
 
 
 def test_check_db_read_only_no_host_path(tmp_path: Path, capsys):
