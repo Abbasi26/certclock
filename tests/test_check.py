@@ -87,7 +87,9 @@ def test_check_hosts_file_and_host_are_mutually_exclusive(tmp_path: Path, capsys
     _cert_file(tmp_path, "far.example.test", 200)
     hosts = tmp_path / "hosts.txt"
     hosts.write_text("127.0.0.1:443 far.example.test\n", encoding="utf-8")
-    assert main(["check", "--hosts-file", str(hosts), "--host", "x.example.test:443"]) == 2
+    with pytest.raises(SystemExit) as exc_info:
+        main(["check", "--hosts-file", str(hosts), "--host", "x.example.test:443"])
+    assert exc_info.value.code == 2
     assert "not allowed" in capsys.readouterr().err.lower()
 
 

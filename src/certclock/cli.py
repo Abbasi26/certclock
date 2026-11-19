@@ -38,10 +38,7 @@ _BUNDLED = (
 
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        return int(exc.code) if isinstance(exc.code, int) else 1
+    args = parser.parse_args(argv)
     try:
         return args.func(args)
     except (OSError, ValueError, RuntimeError) as exc:
