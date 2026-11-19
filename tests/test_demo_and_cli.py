@@ -115,6 +115,50 @@ def test_cli_notify_requires_send(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert main(["notify", "--db", str(db), "--send", "--url", "file:///tmp/nope"]) == 1
 
 
+def test_cli_report_limit_and_unlimited(tmp_path: Path):
+    demo = tmp_path / "demo"
+    assert main(["demo", "--offline", "--out", str(demo)]) == 0
+    db = demo / "certclock.db"
+
+    limited = tmp_path / "limited"
+    assert main(
+        ["report", "--db", str(db), "--out", str(limited), "--limit", "2"]
+    ) == 0
+    limited_text = (limited / "report.md").read_text(encoding="utf-8")
+    assert _certificate_row_count(limited_text) == 2
+    assert "more certificates not shown" in limited_text
+
+    unlimited = tmp_path / "unlimited"
+    assert main(
+        ["report", "--db", str(db), "--out", str(unlimited), "--limit", "0"]
+    ) == 0
+    unlimited_text = (unlimited / "report.md").read_text(encoding="utf-8")
+    inventory = json.loads((unlimited / "inventory.json").read_text(encoding="utf-8"))
+    assert _certificate_row_count(unlimited_text) == len(inventory["certificates"])
+    assert "more certificates not shown" not in unlimited_text
+
+
+@pytest.mark.parametrize("limit", ["-1", "not-a-number"])
+def test_cli_report_rejects_invalid_limit(tmp_path: Path, limit: str):
+    output = tmp_path / "report"
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "report",
+                "--db",
+                str(tmp_path / "inventory.db"),
+                "--out",
+                str(output),
+                "--limit",
+                limit,
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert not output.exists()
+
+
 def test_linux_collector_script_emits_metadata_only(tmp_path: Path):
     script = Path(__file__).resolve().parents[1] / "src" / "certclock" / "bundled" / "collect_linux_certs.py"
     from certclock.mint import mint
@@ -194,3 +238,10 @@ def _outputs(directory: Path) -> str:
         if path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
     return "\n".join(chunks)
+
+
+def _certificate_row_count(text: str) -> int:
+    return sum(
+        line.startswith(("| OK |", "| WARN |", "| CRIT |"))
+        for line in text.splitlines()
+    )

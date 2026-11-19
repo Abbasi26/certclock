@@ -177,6 +177,19 @@ def _add_db_args(parser: argparse.ArgumentParser, *, with_thresholds: bool = Tru
 def _add_report_args(parser: argparse.ArgumentParser) -> None:
     _add_db_args(parser)
     parser.add_argument("--out", required=True)
+    parser.add_argument(
+        "--limit",
+        type=_nonnegative_int,
+        default=50,
+        help="maximum certificates in report.md (default: 50; 0 means unlimited)",
+    )
+
+
+def _nonnegative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    return parsed
 
 
 def _add_import_args(parser: argparse.ArgumentParser) -> None:
@@ -203,7 +216,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 def _cmd_report(args: argparse.Namespace) -> int:
     report = _load_report(args)
-    files = write_reports(report, args.out)
+    files = write_reports(report, args.out, markdown_limit=args.limit)
     _print_paths(files)
     return 0
 
