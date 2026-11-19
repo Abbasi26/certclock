@@ -21,6 +21,7 @@ _KNOWN = {
     "warn_days",
     "crit_days",
     "weak_rsa_bits",
+    "max_validity_days",
     "notify_within_days",
     "webhook",
 }
@@ -47,6 +48,7 @@ class Config:
     warn_days: int = 30
     crit_days: int = 7
     weak_rsa_bits: int = 2048
+    max_validity_days: int = 100
     notify_within_days: int = 30
     webhook_enabled: bool = False
     webhook_url: str = ""
@@ -94,6 +96,9 @@ def load_config(path: str | Path) -> Config:
     config.warn_days = int(raw.get("warn_days", config.warn_days))
     config.crit_days = int(raw.get("crit_days", config.crit_days))
     config.weak_rsa_bits = int(raw.get("weak_rsa_bits", config.weak_rsa_bits))
+    config.max_validity_days = int(raw.get("max_validity_days", config.max_validity_days))
+    if config.max_validity_days < 0:
+        raise ValueError("max_validity_days must be 0 (off) or a positive number of days")
     config.notify_within_days = int(raw.get("notify_within_days", config.notify_within_days))
     webhook = raw.get("webhook") or {}
     if not isinstance(webhook, dict):

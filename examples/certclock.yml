@@ -17,6 +17,8 @@ horizon_days: 90
 warn_days: 30
 crit_days: 7
 weak_rsa_bits: 2048
+# Flag end-entity certificates valid for longer than this (CA/B Forum: 100 days from 15 Mar 2027). 0 = off.
+max_validity_days: 100
 notify_within_days: 30
 webhook:
   enabled: false

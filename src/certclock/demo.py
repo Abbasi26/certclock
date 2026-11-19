@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,13 +47,14 @@ def run_demo(output_dir: str | Path, *, live: bool = True) -> DemoResult:
     started = time.perf_counter()
     now = utcnow()
     destination = Path(output_dir)
+    
+    # Clean the output directory to handle re-runs into existing directories
+    if destination.exists():
+        shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    
     database = destination / "certclock.db"
-    if database.exists():
-        database.unlink()
     work = destination / ".work"
-    if work.exists():
-        _remove_tree(work)
     work.mkdir()
     servers: list[LocalTlsServer] = []
     try:
@@ -436,3 +438,4 @@ _OWNERS = yaml.safe_dump(
     },
     sort_keys=False,
 )
+

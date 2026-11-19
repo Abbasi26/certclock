@@ -1,9 +1,13 @@
-"""Parse a TLS host list. Lines are ``host:port`` or ``host:port sni``."""
+"""Parse a TLS host list. Lines are ``host:port`` or ``host:port sni``.
+
+Also accepts full URLs like ``https://host:port/path`` and strips the scheme and path.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -36,38 +40,53 @@ def load_hosts(path: str | Path) -> list[Endpoint]:
 
 
 def _parse_line(raw: str, original: str) -> Endpoint:
-    if len(raw.split()) > 2:
+    parts = raw.split()
+    if len(parts) > 2:
         raise ValueError("expected endpoint and optional SNI")
     sni: str | None = None
-    if raw.startswith("["):
-        end = raw.find("]")
+    endpoint = parts[0]
+    if len(parts) > 1:
+        sni = parts[1]
+
+    # Accept full URLs like https://host:port/path and strip scheme/path
+    if endpoint.startswith("http://") or endpoint.startswith("https://"):
+        endpoint = _strip_url_scheme_and_path(endpoint)
+
+    if endpoint.startswith("["):
+        end = endpoint.find("]")
         if end < 0:
             raise ValueError("unclosed IPv6 bracket")
-        host = raw[1:end]
-        rest = raw[end + 1 :].strip()
+        host = endpoint[1:end]
+        rest = endpoint[end + 1 :].strip()
         if not rest.startswith(":"):
             raise ValueError("IPv6 endpoints need [address]:port")
-        parts = rest[1:].split()
-        if not parts or not parts[0].isdigit():
+        port_text = rest[1:]
+        if not port_text.isdigit():
             raise ValueError("missing port")
-        port = int(parts[0])
-        if len(parts) > 1:
-            sni = parts[1]
+        port = int(port_text)
     else:
-        parts = raw.split()
-        hostport = parts[0]
-        if len(parts) > 1:
-            sni = parts[1]
-        if ":" in hostport:
-            host, port_text = hostport.rsplit(":", 1)
+        if ":" in endpoint:
+            host, port_text = endpoint.rsplit(":", 1)
             if not port_text.isdigit():
-                raise ValueError(f"bad port in {hostport!r}")
+                raise ValueError(f"bad port in {endpoint!r}")
             port = int(port_text)
         else:
-            host = hostport
+            host = endpoint
             port = 443
     if not host:
         raise ValueError("missing host")
     if not 1 <= port <= 65535:
         raise ValueError(f"port {port} is out of range")
     return Endpoint(host=host, port=port, sni=sni or host, line=original)
+
+
+def _strip_url_scheme_and_path(url: str) -> str:
+    """Strip scheme and path from a URL, returning host:port."""
+    parsed = urlparse(url)
+    if not parsed.netloc:
+        raise ValueError(f"invalid URL: {url!r}")
+    hostport = parsed.netloc
+    # Remove userinfo if present (e.g., user:pass@host:port)
+    if "@" in hostport:
+        hostport = hostport.split("@", 1)[1]
+    return hostport
