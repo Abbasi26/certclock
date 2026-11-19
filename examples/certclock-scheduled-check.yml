@@ -1,0 +1,28 @@
+name: Scheduled certificate check
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certificate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check certificates
+        uses: Abbasi26/certclock@35468df5c2b6d38bb916b6d9b7f5ff3394fd8a08 # v0.2.0
+        with:
+          hosts: |
+            www.example.test:443
+            api.example.test:443
+          paths: |
+            deploy/certs
+          warn-days: "30"
+          crit-days: "7"
+          fail-on: crit

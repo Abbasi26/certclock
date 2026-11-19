@@ -75,6 +75,8 @@ CRIT: 3 certificates, 1 expired, 1 within 7 days, 1 within 30 days
 
 The step writes the Markdown report to the job summary and fails the job on CRIT. `exit-code` is available as a step output.
 
+For a nightly scheduled check of TLS endpoints and certificate files, copy [`examples/certclock-scheduled-check.yml`](examples/certclock-scheduled-check.yml) into your repository's `.github/workflows/` directory and replace the example hosts and paths.
+
 ## Real usage
 
 One config file runs every collector that has an input, replaces the local SQLite snapshot, and writes the reports:
