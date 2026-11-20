@@ -119,12 +119,62 @@ def test_write_reports_limits_only_markdown(tmp_path: Path, now: dt.datetime):
 def test_ics_has_reminders_and_folds_long_lines(tmp_path: Path, now: dt.datetime):
     text = render_ics(_report(tmp_path, now))
     assert "BEGIN:VCALENDAR" in text
-    assert text.count("BEGIN:VALARM") == 9  # 3 events inside 90 days, 3 alarms each; later is excluded
-    assert "TRIGGER:-P30D" in text
-    assert "TRIGGER:-P7D" in text
-    assert "TRIGGER:-P1D" in text
+    assert text.count("BEGIN:VALARM") == 3
+    assert _alarm_triggers(text, "bad<tag>") == ["TRIGGER:-P1D"]
+    assert _alarm_triggers(text, "month.example.test") == [
+        "TRIGGER:-P7D",
+        "TRIGGER:-P1D",
+    ]
+    assert _alarm_triggers(text, "old.example.test") == []
+    assert "SUMMARY:EXPIRED: Certificate expires: old.example.test" in text
+    assert "TRIGGER:-P30D" not in text
     for line in text.split("\r\n"):
         assert len(line.encode("utf-8")) <= 75
+
+
+def test_ics_keeps_all_future_reminders(tmp_path: Path, now: dt.datetime):
+    report = _report(tmp_path, now)
+    cert = next(
+        cert for cert in report.certificates if cert.subject_cn == "month.example.test"
+    )
+    cert.not_after = now + dt.timedelta(days=31)
+    cert.days_remaining = 31
+    report.certificates = [cert]
+
+    assert _alarm_triggers(render_ics(report), cert.subject_cn) == [
+        "TRIGGER:-P30D",
+        "TRIGGER:-P7D",
+        "TRIGGER:-P1D",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("days", "seconds", "expected"),
+    [
+        (1, 0, []),
+        (1, 1, ["TRIGGER:-P1D"]),
+        (7, 0, ["TRIGGER:-P1D"]),
+        (7, 1, ["TRIGGER:-P7D", "TRIGGER:-P1D"]),
+        (30, 0, ["TRIGGER:-P7D", "TRIGGER:-P1D"]),
+        (30, 1, ["TRIGGER:-P30D", "TRIGGER:-P7D", "TRIGGER:-P1D"]),
+    ],
+)
+def test_ics_omits_reminders_that_are_already_due(
+    tmp_path: Path,
+    now: dt.datetime,
+    days: int,
+    seconds: int,
+    expected: list[str],
+):
+    report = _report(tmp_path, now)
+    cert = next(
+        cert for cert in report.certificates if cert.subject_cn == "month.example.test"
+    )
+    cert.not_after = now + dt.timedelta(days=days, seconds=seconds)
+    cert.days_remaining = days
+    report.certificates = [cert]
+
+    assert _alarm_triggers(render_ics(report), cert.subject_cn) == expected
 
 
 def test_checkmk_and_prometheus(tmp_path: Path, now: dt.datetime):
@@ -255,3 +305,13 @@ def _certificate_row_count(text: str) -> int:
         line.startswith(("| OK |", "| WARN |", "| CRIT |"))
         for line in text.splitlines()
     )
+
+
+def _alarm_triggers(text: str, subject_cn: str) -> list[str]:
+    unfolded = text.replace("\r\n ", "")
+    event = next(
+        event
+        for event in unfolded.split("BEGIN:VEVENT\r\n")[1:]
+        if f"Certificate expires: {subject_cn}\r\n" in event
+    )
+    return [line for line in event.split("\r\n") if line.startswith("TRIGGER:")]
