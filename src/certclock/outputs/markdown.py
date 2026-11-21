@@ -17,8 +17,8 @@ _BUCKET_LABELS = {
 def render_markdown(report: Report, *, limit: int | None = 50) -> str:
     """Return a GitHub-flavoured Markdown report.
 
-    ``limit`` caps the certificate table so the text stays postable. ``None``
-    lists every certificate.
+    ``limit`` caps the certificate table so the text stays postable. ``0`` or
+    ``None`` lists every certificate.
     """
     counts = report.summary()
     lines = [
@@ -36,13 +36,14 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
     lines.append("")
 
     ordered = sorted(report.certificates, key=lambda cert: (cert.days_remaining, cert.subject_cn))
-    shown = ordered if limit is None else ordered[:limit]
+    unlimited = limit in (0, None)
+    shown = ordered if unlimited else ordered[:limit]
     if shown:
         lines += [
             "## Certificates by expiry",
             "",
-            "| Status | Common name | Days left | Expires | Owner | Findings |",
-            "| --- | --- | ---: | --- | --- | --- |",
+            "| Status | Common name | Issuer | Days left | Expires | Owner | Findings |",
+            "| --- | --- | --- | ---: | --- | --- | --- |",
         ]
         for cert in shown:
             lines.append(
@@ -51,6 +52,7 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
                     [
                         status_label(cert, report.warn_days, report.crit_days),
                         _cell(cert.subject_cn or cert.fingerprint[:16]),
+                        _cell(_issuer_label(cert)),
                         str(cert.days_remaining),
                         format_datetime(cert.not_after)[:10],
                         _cell(cert.owner or "unassigned"),
@@ -59,7 +61,7 @@ def render_markdown(report: Report, *, limit: int | None = 50) -> str:
                 )
                 + " |"
             )
-        if limit is not None and len(ordered) > limit:
+        if not unlimited and len(ordered) > limit:
             lines.append("")
             lines.append(f"_{len(ordered) - limit} more certificates not shown. See inventory.csv._")
         lines.append("")
@@ -91,3 +93,16 @@ def status_label(cert: ReportCert, warn_days: int, crit_days: int) -> str:
 
 def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
+
+
+def _issuer_label(cert: ReportCert) -> str:
+    """Short label for the issuing CA, with a note when the dependency is timed."""
+    from certclock.parse import cn_from_subject
+
+    name = cn_from_subject(cert.issuer) or cert.issuer or "-"
+    codes = {problem.code for problem in cert.problems}
+    if "issuer_expires_first" in codes:
+        return f"{name} (expires first)"
+    if "issuer_not_in_inventory" in codes or "missing_intermediate" in codes:
+        return f"{name} (not timed)"
+    return name

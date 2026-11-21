@@ -12,3 +12,4 @@ certclock-out/
 .coverage
 htmlcov/
 testResults.xml
+.tmp/

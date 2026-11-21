@@ -1,0 +1,19 @@
+{
+  "collector": "certclock-intune-connector",
+  "version": 1,
+  "host": "pki-connector-01.example.test",
+  "provider": "Microsoft-Intune-CertificateConnectors",
+  "hours": 168,
+  "collected_at": "2026-11-03T06:00:00Z",
+  "events": [
+    {"id": 5000, "time_created": "2026-11-01T05:00:00Z", "level": "Information", "log_name": "Operational"},
+    {"id": 4003, "time_created": "2026-11-02T22:10:00Z", "level": "Information", "log_name": "Operational"},
+    {"id": 4004, "time_created": "2026-11-02T22:10:01Z", "level": "Information", "log_name": "Operational"},
+    {"id": 4006, "time_created": "2026-11-02T22:10:02Z", "level": "Information", "log_name": "Operational"},
+    {"id": 4009, "time_created": "2026-11-02T22:10:03Z", "level": "Warning", "log_name": "Operational"},
+    {"id": 1052, "time_created": "2026-11-03T01:30:00Z", "level": "Error", "log_name": "Operational"},
+    {"id": 5001, "time_created": "2026-11-03T04:00:00Z", "level": "Warning", "log_name": "Operational"},
+    {"id": 5002, "time_created": "2026-11-03T05:00:00Z", "level": "Error", "log_name": "Operational"}
+  ],
+  "errors": []
+}
