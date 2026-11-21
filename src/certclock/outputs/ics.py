@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from certclock import __version__
 from certclock.dates import ensure_utc, format_date
@@ -11,7 +11,8 @@ from certclock.models import Report, ReportCert
 
 
 def render_ics(report: Report) -> str:
-    stamp = ensure_utc(report.generated_at).strftime("%Y%m%dT%H%M%SZ")
+    generated_at = ensure_utc(report.generated_at)
+    stamp = generated_at.strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -23,12 +24,12 @@ def render_ics(report: Report) -> str:
     for cert in report.certificates:
         if cert.days_remaining > report.horizon_days:
             continue
-        lines.extend(_event(cert, stamp))
+        lines.extend(_event(cert, stamp, generated_at))
     lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
 
 
-def _event(cert: ReportCert, stamp: str) -> list[str]:
+def _event(cert: ReportCert, stamp: str, generated_at: datetime) -> list[str]:
     start = ensure_utc(cert.not_after)
     begin_stamp = start.strftime("%Y%m%dT%H%M%SZ")
     end_stamp = (start + timedelta(hours=1)).strftime("%Y%m%dT%H%M%SZ")
@@ -46,6 +47,8 @@ def _event(cert: ReportCert, stamp: str) -> list[str]:
         f"DESCRIPTION:{_escape(description)}",
     ]
     for days, label in ((30, "30 days"), (7, "7 days"), (1, "1 day")):
+        if start - timedelta(days=days) <= generated_at:
+            continue
         lines.extend(
             [
                 "BEGIN:VALARM",
