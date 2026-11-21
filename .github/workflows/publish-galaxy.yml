@@ -66,7 +66,7 @@ jobs:
 
       - name: Publish
         env:
-        GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
+          GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
         run: |
           if [ -z "${GALAXY_API_KEY}" ]; then
             echo "::notice::GALAXY_API_KEY is not set. Built and checked only; nothing was published."
