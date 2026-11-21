@@ -24,7 +24,7 @@ from certclock.collectors.files import FileCollector
 from certclock.collectors.tls import TlsCollector
 from certclock.config import Config
 from certclock.dates import format_date, format_datetime, utcnow
-from certclock.hosts import parse_hosts
+from certclock.hosts import load_hosts, parse_hosts
 from certclock.inventory import Inventory
 from certclock.models import Gap, Report
 from certclock.outputs.checkmk import render_checkmk
@@ -120,9 +120,10 @@ def run_check(
     max_validity_days: int = 100,
     timeout: float = 8.0,
     fail_on: str = "crit",
+    hosts_file: str | None = None,
 ) -> CheckOutcome:
-    if not db and not hosts and not paths:
-        raise ValueError("pass --db, or at least one --host or --path")
+    if not db and not hosts and not paths and not hosts_file:
+        raise ValueError("pass --db, or at least one --host, --host-file, or --path")
     if crit_days > warn_days:
         raise ValueError("--crit-days must not be larger than --warn-days")
 
@@ -140,13 +141,13 @@ def run_check(
     now = utcnow()
 
     # Case A: db provided, no ad-hoc collection -> read prod DB only
-    if db and not hosts and not paths:
+    if db and not hosts and not paths and not hosts_file:
         with Inventory(db) as inventory:
             report = build_report(inventory, config, now)
         return evaluate(report, fail_on)
 
     # Case B: db provided AND ad-hoc collection -> merge prod + temp
-    if db and (hosts or paths):
+    if db and (hosts or paths or hosts_file):
         with Inventory(db) as prod_inventory:
             prod_certs = prod_inventory.certificates()
             prod_gaps = prod_inventory.gaps()
@@ -155,7 +156,10 @@ def run_check(
         with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
             temp_db = str(Path(scratch) / "check.db")
             with Inventory(temp_db) as temp_inventory:
-                if hosts:
+                if hosts_file:
+                    endpoints = load_hosts(hosts_file)
+                    temp_inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
+                elif hosts:
                     endpoints = parse_hosts("\n".join(hosts))
                     temp_inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
                 if paths:
@@ -179,7 +183,10 @@ def run_check(
     with tempfile.TemporaryDirectory(prefix="certclock-check-") as scratch:
         database = str(Path(scratch) / "check.db")
         with Inventory(database) as inventory:
-            if hosts:
+            if hosts_file:
+                endpoints = load_hosts(hosts_file)
+                inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
+            elif hosts:
                 endpoints = parse_hosts("\n".join(hosts))
                 inventory.ingest(TlsCollector(endpoints, timeout=timeout).collect(), now)
             if paths:

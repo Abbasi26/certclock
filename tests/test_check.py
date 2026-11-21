@@ -73,6 +73,31 @@ def test_check_usage_errors_exit_3(tmp_path: Path, capsys):
     assert "certclock:" in capsys.readouterr().err
 
 
+def test_check_hosts_file_reuses_load_hosts(tmp_path: Path, capsys):
+    _cert_file(tmp_path, "far.example.test", 200)
+    hosts = tmp_path / "hosts.txt"
+    hosts.write_text(
+        "# comment\n127.0.0.1:443 far.example.test\n", encoding="utf-8"
+    )
+    assert main(["check", "--hosts-file", str(hosts), "--timeout", "5"]) == EXIT_OK
+    assert "far.example.test" in capsys.readouterr().out
+
+
+def test_check_hosts_file_and_host_are_mutually_exclusive(tmp_path: Path, capsys):
+    _cert_file(tmp_path, "far.example.test", 200)
+    hosts = tmp_path / "hosts.txt"
+    hosts.write_text("127.0.0.1:443 far.example.test\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc_info:
+        main(["check", "--hosts-file", str(hosts), "--host", "x.example.test:443"])
+    assert exc_info.value.code == 2
+    assert "not allowed" in capsys.readouterr().err.lower()
+
+
+def test_check_hosts_file_missing_file_errors(tmp_path: Path, capsys):
+    assert main(["check", "--hosts-file", str(tmp_path / "nope.txt")]) == EXIT_ERROR
+    assert "certclock:" in capsys.readouterr().err
+
+
 def test_check_unreadable_db_exits_3(tmp_path: Path, capsys):
     """check --db with a non-SQLite file returns exit 3 and prints error."""
     not_a_db = tmp_path / "not_a_db.txt"
