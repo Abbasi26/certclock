@@ -312,7 +312,11 @@ def render(outcome: CheckOutcome, fmt: str) -> str:
     if fmt == "json":
         return render_json_outcome(outcome)
     if fmt == "markdown":
-        return render_markdown(outcome.report)
+        text = render_markdown(outcome.report)
+        label = {0: "OK", 1: "WARN", 2: "CRIT"}[outcome.worst]
+        total = outcome.report.summary()["total"]
+        head, _, rest = text.partition("\n")
+        return f"{head}\n**certclock check: {label}** (exit {outcome.exit_code}) — {total} certificates{rest}"
     if fmt == "checkmk":
         return render_checkmk(outcome.report)
     return render_text(outcome)
