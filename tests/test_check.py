@@ -172,7 +172,7 @@ def test_markdown_escapes_pipes_and_limits_rows(tmp_path: Path):
     assert "3 more certificates not shown" in text
 
 
-@pytest.mark.parametrize("fmt", ["text", "json", "markdown", "checkmk"])
+@pytest.mark.parametrize("fmt", ["text", "json", "markdown", "checkmk", "prometheus"])
 def test_check_formats_do_not_leak_keys(tmp_path: Path, capsys, fmt: str):
     now = utcnow()
     minted = mint("bundle.example.test", not_before=now, not_after=now + dt.timedelta(days=2))
@@ -242,6 +242,24 @@ def test_check_format_checkmk_matches_checkmk_command(tmp_path: Path, capsys):
     assert out_check == out_checkmk
     assert "CertClock summary" in out_check
     assert "expires_in_days=" in out_check
+
+
+def test_check_format_prometheus(tmp_path: Path, capsys):
+    """check --format prometheus emits Prometheus textfile metrics and exits 0."""
+    demo = tmp_path / "demo"
+    assert main(["demo", "--offline", "--out", str(demo)]) == 0
+    capsys.readouterr()
+    db_path = demo / "certclock.db"
+
+    code = main(["check", "--db", str(db_path), "--format", "prometheus", "--fail-on", "never"])
+    assert code == EXIT_OK
+    out = capsys.readouterr().out
+    assert "# HELP certclock_certificates Certificates in the latest local snapshot." in out
+    assert 'certclock_certificates{bucket="total"}' in out
+    assert "# HELP certclock_certificate_days_remaining Days until expiry. Negative means expired." in out
+    assert "certclock_certificate_days_remaining{" in out
+    assert "# HELP certclock_certificate_problem 1 when the certificate has this finding." in out
+    assert "certclock_certificate_problem{" in out
 
 
 def test_check_invalid_format_rejected(tmp_path: Path, capsys):

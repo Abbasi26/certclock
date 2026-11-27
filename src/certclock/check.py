@@ -29,6 +29,7 @@ from certclock.inventory import Inventory
 from certclock.models import Gap, Report
 from certclock.outputs.checkmk import render_checkmk
 from certclock.outputs.markdown import render_markdown, status_code, status_label
+from certclock.outputs.prometheus import render_prometheus
 from certclock.pipeline import build_report
 
 
@@ -315,4 +316,6 @@ def render(outcome: CheckOutcome, fmt: str) -> str:
         return render_markdown(outcome.report)
     if fmt == "checkmk":
         return render_checkmk(outcome.report)
+    if fmt == "prometheus":
+        return render_prometheus(outcome.report)
     return render_text(outcome)
