@@ -141,6 +141,34 @@ def test_check_against_existing_db_with_markdown(tmp_path: Path, capsys):
     assert db_path.stat().st_mtime == db_mtime
 
 
+def test_check_markdown_shows_gate_status(tmp_path: Path, capsys):
+    """check --format markdown prints a one-line gate summary (label + exit code)."""
+    # Zertifikat innerhalb der crit-Tage (7 Tage) -> CRIT, exit 2
+    _cert_file(tmp_path, "soon.example.test", 5)
+    db = tmp_path / "demo.db"
+    assert main(["collect", "files", "--db", str(db), "--path", str(tmp_path / "soon.example.test.pem")]) == 0
+    capsys.readouterr()
+
+    code = main(["check", "--db", str(db), "--format", "markdown"])
+    assert code == EXIT_CRIT
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == "# CertClock report"
+    assert lines[1] == "**certclock check: CRIT** (exit 2) — 1 certificates"
+
+    # OK-Fall: Ablauf weit in der Zukunft -> OK, exit 0
+    ok_db = tmp_path / "ok.db"
+    _cert_file(tmp_path, "far.example.test", 200)
+    assert main(["collect", "files", "--db", str(ok_db), "--path", str(tmp_path / "far.example.test.pem")]) == 0
+    capsys.readouterr()
+    code = main(["check", "--db", str(ok_db), "--format", "markdown"])
+    assert code == EXIT_OK
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == "# CertClock report"
+    assert lines[1] == "**certclock check: OK** (exit 0) — 1 certificates"
+
+
 def test_report_writes_markdown_file(tmp_path: Path):
     demo = tmp_path / "demo"
     assert main(["demo", "--offline", "--out", str(demo)]) == 0
