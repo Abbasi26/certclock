@@ -90,8 +90,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     check.add_argument("--db", default=None, help="read an existing inventory")
     host_group = check.add_mutually_exclusive_group()
-    host_group.add_argument("--host", action="append", default=[], help="host[:port] [sni]; repeatable")
-    host_group.add_argument("--hosts-file", default=None, help="read endpoints from a hosts file")
+    host_group.add_argument(
+        "--host",
+        action="append",
+        default=[],
+        help="host[:port] [sni] or smtp://host[:port] [sni] (SMTP default: 25); repeatable",
+    )
+    host_group.add_argument(
+        "--hosts-file", default=None, help="read TLS or SMTP STARTTLS endpoints from a hosts file"
+    )
     check.add_argument("--path", action="append", default=[], help="certificate file or directory; repeatable")
     check.add_argument("--owners", default=None)
     check.add_argument("--warn-days", type=int, default=30)

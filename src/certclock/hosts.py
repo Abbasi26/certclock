@@ -1,6 +1,6 @@
 """Parse a TLS host list. Lines are ``host:port`` or ``host:port sni``.
 
-Also accepts full URLs like ``https://host:port/path`` and strips the scheme and path.
+Also accepts HTTP(S) URLs and SMTP STARTTLS URLs such as ``smtp://host:25``.
 """
 
 from __future__ import annotations
@@ -16,9 +16,13 @@ class Endpoint:
     port: int
     sni: str
     line: str
+    transport: str = "tls"
 
     @property
     def detail(self) -> str:
+        if self.transport == "smtp":
+            host = f"[{self.host}]" if ":" in self.host else self.host
+            return f"smtp://{host}:{self.port} SNI {self.sni}"
         return f"{self.host}:{self.port} SNI {self.sni}"
 
 
@@ -48,11 +52,25 @@ def _parse_line(raw: str, original: str) -> Endpoint:
     if len(parts) > 1:
         sni = parts[1]
 
-    # Accept full URLs like https://host:port/path and strip scheme/path
+    transport = "tls"
+    # Accept full URLs like https://host:port/path and strip scheme/path.
+    if endpoint.startswith("smtp://"):
+        parsed = urlparse(endpoint)
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("SMTP endpoints must not contain userinfo")
+        try:
+            port = parsed.port if parsed.port is not None else 25
+        except ValueError as exc:
+            raise ValueError(f"bad port in {endpoint!r}") from exc
+        host = parsed.hostname or ""
+        transport = "smtp"
+        endpoint = ""
     if endpoint.startswith("http://") or endpoint.startswith("https://"):
         endpoint = _strip_url_scheme_and_path(endpoint)
 
-    if endpoint.startswith("["):
+    if not endpoint:
+        pass
+    elif endpoint.startswith("["):
         end = endpoint.find("]")
         if end < 0:
             raise ValueError("unclosed IPv6 bracket")
@@ -77,7 +95,7 @@ def _parse_line(raw: str, original: str) -> Endpoint:
         raise ValueError("missing host")
     if not 1 <= port <= 65535:
         raise ValueError(f"port {port} is out of range")
-    return Endpoint(host=host, port=port, sni=sni or host, line=original)
+    return Endpoint(host=host, port=port, sni=sni or host, line=original, transport=transport)
 
 
 def _strip_url_scheme_and_path(url: str) -> str:

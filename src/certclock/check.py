@@ -8,7 +8,8 @@ Exit codes:
 * 3 - usage or input error (bad host list, unreadable path, ...)
 
 ``check`` can read an existing inventory (``--db``) or collect ad hoc from
-``--host`` and ``--path`` into a throwaway database, so a single command works
+``--host`` (direct TLS or SMTP STARTTLS) and ``--path`` into a throwaway database,
+so a single command works
 in a CI job without a config file.
 """
 
