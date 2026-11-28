@@ -92,6 +92,32 @@ def test_hosts_parser_url_with_custom_sni():
     assert endpoints[0].sni == "custom-sni.example.test"
 
 
+@pytest.mark.parametrize(
+    ("url", "host", "port", "sni"),
+    [
+        ("smtp://mail.example.test", "mail.example.test", 25, "mail.example.test"),
+        ("smtp://mail.example.test:587", "mail.example.test", 587, "mail.example.test"),
+        ("smtp://[::1]:2525", "::1", 2525, "::1"),
+        ("smtp://127.0.0.1:2525 mx.example.test", "127.0.0.1", 2525, "mx.example.test"),
+    ],
+)
+def test_hosts_parser_accepts_smtp(url: str, host: str, port: int, sni: str):
+    endpoint = parse_hosts(url)[0]
+    assert (endpoint.host, endpoint.port, endpoint.sni, endpoint.transport) == (
+        host,
+        port,
+        sni,
+        "smtp",
+    )
+    assert endpoint.detail.startswith("smtp://")
+
+
+@pytest.mark.parametrize("url", ["smtp://:25", "smtp://mail.example.test:bad", "smtp://user@mail.example.test"])
+def test_hosts_parser_rejects_invalid_smtp(url: str):
+    with pytest.raises(ValueError):
+        parse_hosts(url)
+
+
 def test_hosts_parser_rejects_invalid_urls():
     with pytest.raises(ValueError, match="invalid URL"):
         parse_hosts("https:///path")
@@ -217,6 +243,47 @@ def test_tls_chain_san_and_missing_intermediate(now: dt.datetime, tmp_path: Path
     assert "shop.example.test" in shop_row.problems[-1].message or any(
         "shop.example.test" in problem.message for problem in shop_row.problems
     )
+
+
+def test_smtp_starttls_collects_certificate(now: dt.datetime, smtp_server, monkeypatch):
+    from certclock.collectors import tls
+
+    minted = mint(
+        "mail.example.test",
+        not_before=now - dt.timedelta(days=1),
+        not_after=now + dt.timedelta(days=30),
+    )
+    monkeypatch.setattr(tls.shutil, "which", lambda _name: None)
+    with smtp_server(minted) as server:
+        result = TlsCollector(
+            parse_hosts(f"smtp://127.0.0.1:{server.port} mail.example.test"), timeout=2
+        ).collect()
+    assert not result.gaps
+    assert result.observations[0].der == minted.der
+    assert "smtp://" in result.observations[0].detail
+
+
+@pytest.mark.parametrize(
+    ("mode", "message"),
+    [
+        ("no-starttls", "does not advertise STARTTLS"),
+        ("ehlo-error", "EHLO was rejected"),
+        ("starttls-error", "STARTTLS was rejected"),
+        ("invalid", "greeting was rejected"),
+        ("timeout", "Invalid SMTP response"),
+    ],
+)
+def test_smtp_protocol_errors_are_gaps(now: dt.datetime, smtp_server, mode: str, message: str):
+    minted = mint(
+        "mail.example.test",
+        not_before=now - dt.timedelta(days=1),
+        not_after=now + dt.timedelta(days=30),
+    )
+    with smtp_server(minted, mode) as server:
+        timeout = 0.05 if mode == "timeout" else 2
+        result = TlsCollector(parse_hosts(f"smtp://127.0.0.1:{server.port}"), timeout=timeout).collect()
+    assert not result.observations
+    assert message in result.gaps[0].message
 
 
 def test_adcs_csv_skips_revoked_and_links_issuer(tmp_path: Path, now: dt.datetime):
@@ -442,3 +509,17 @@ def test_openssl_connection_target(
     )
     assert run.call_args.kwargs["timeout"] == 2.5
     assert run.call_args.kwargs["env"]["LC_ALL"] == "C"
+
+
+def test_openssl_uses_smtp_starttls(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import Mock
+
+    from certclock.collectors import tls
+
+    endpoint = parse_hosts("smtp://mail.example.test:587")[0]
+    run = Mock(return_value=tls.subprocess.CompletedProcess([], 0, stdout=b""))
+    monkeypatch.setattr(tls.shutil, "which", lambda _name: "/mock/openssl")
+    monkeypatch.setattr(tls.subprocess, "run", run)
+
+    assert tls._chain_from_openssl(endpoint, timeout=2.5) == []
+    assert run.call_args.args[0][-2:] == ["-starttls", "smtp"]

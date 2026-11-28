@@ -124,6 +124,30 @@ def test_check_reads_loopback_tls(tmp_path: Path, capsys):
     assert "edge.example.test" in capsys.readouterr().out
 
 
+def test_check_reads_smtp_starttls(capsys, smtp_server, monkeypatch):
+    from certclock.collectors import tls
+
+    now = utcnow()
+    minted = mint(
+        "mail.example.test",
+        not_before=now - dt.timedelta(days=1),
+        not_after=now + dt.timedelta(days=3, hours=1),
+    )
+    monkeypatch.setattr(tls.shutil, "which", lambda _name: None)
+    with smtp_server(minted) as server:
+        code = main(
+            [
+                "check",
+                "--host",
+                f"smtp://127.0.0.1:{server.port} mail.example.test",
+                "--timeout",
+                "2",
+            ]
+        )
+    assert code == EXIT_CRIT
+    assert "mail.example.test" in capsys.readouterr().out
+
+
 def test_check_against_existing_db_with_markdown(tmp_path: Path, capsys):
     demo = tmp_path / "demo"
     assert main(["demo", "--offline", "--out", str(demo)]) == 0

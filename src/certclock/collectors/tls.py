@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import smtplib
 import socket
 import ssl
 import subprocess
@@ -20,6 +21,39 @@ _CERT_TEXT = re.compile(
     b"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
     re.DOTALL,
 )
+_SMTP_CLIENT_NAME = "certclock.invalid"
+_SMTP_MAX_REPLY = 65536
+
+
+class _SmtpProtocolError(Exception):
+    pass
+
+
+class _LimitedSMTP(smtplib.SMTP):
+    """SMTP client with a cap on complete multi-line replies."""
+
+    def getreply(self) -> tuple[int, bytes]:
+        if self.file is None:
+            self.file = self.sock.makefile("rb")
+        lines: list[bytes] = []
+        total = 0
+        while True:
+            line = self.file.readline(smtplib._MAXLINE + 1)  # noqa: SLF001
+            if not line:
+                raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
+            if len(line) > smtplib._MAXLINE:  # noqa: SLF001
+                raise smtplib.SMTPResponseException(500, b"Line too long")
+            total += len(line)
+            if total > _SMTP_MAX_REPLY:
+                raise smtplib.SMTPResponseException(500, b"Reply too large")
+            line = line.rstrip(b"\r\n")
+            try:
+                code = int(line[:3])
+            except ValueError:
+                return -1, line
+            lines.append(line[4:] if len(line) > 4 else b"")
+            if len(line) < 4 or line[3:4] != b"-":
+                return code, b"\n".join(lines)
 
 
 class TlsCollector:
@@ -63,7 +97,10 @@ class TlsCollector:
 
 
 def _read_endpoint(endpoint: Endpoint, timeout: float) -> Observation | Gap:
-    ders, saw_chain = _chain_from_ssl(endpoint, timeout)
+    try:
+        ders, saw_chain = _chain_from_ssl(endpoint, timeout)
+    except _SmtpProtocolError as exc:
+        return Gap("tls", endpoint.detail, str(exc))
     chain_source = "ssl"
     # openssl can show certificates the ssl module does not expose before 3.13.
     # A leaf from getpeercert() alone is not evidence that the server omitted the chain.
@@ -100,7 +137,11 @@ def _chain_from_ssl(endpoint: Endpoint, timeout: float) -> tuple[list[bytes], bo
     context.verify_mode = ssl.CERT_NONE
     try:
         with socket.create_connection((endpoint.host, endpoint.port), timeout=timeout) as sock:
-            with context.wrap_socket(sock, server_hostname=endpoint.sni) as tls:
+            if endpoint.transport == "smtp":
+                tls = _smtp_starttls(sock, endpoint, context, timeout)
+            else:
+                tls = context.wrap_socket(sock, server_hostname=endpoint.sni)
+            with tls:
                 if hasattr(tls, "get_unverified_chain"):
                     chain = tls.get_unverified_chain() or []
                     if chain:
@@ -109,6 +150,39 @@ def _chain_from_ssl(endpoint: Endpoint, timeout: float) -> tuple[list[bytes], bo
                 return ([der] if der else []), False
     except (OSError, ssl.SSLError, TimeoutError):
         return [], False
+
+
+def _smtp_starttls(
+    sock: socket.socket,
+    endpoint: Endpoint,
+    context: ssl.SSLContext,
+    timeout: float,
+) -> ssl.SSLSocket:
+    client = _LimitedSMTP(timeout=timeout, local_hostname=_SMTP_CLIENT_NAME)
+    client._host = endpoint.host  # noqa: SLF001
+    client.sock = sock
+    try:
+        code, _message = client.getreply()
+        if code != 220:
+            raise _SmtpProtocolError(f"SMTP greeting was rejected (status {code}).")
+        code, _message = client.ehlo(_SMTP_CLIENT_NAME)
+        if code != 250:
+            raise _SmtpProtocolError(f"SMTP EHLO was rejected (status {code}).")
+        if not client.has_extn("starttls"):
+            raise _SmtpProtocolError("SMTP server does not advertise STARTTLS.")
+        code, _message = client.docmd("STARTTLS")
+        if code != 220:
+            raise _SmtpProtocolError(f"SMTP STARTTLS was rejected (status {code}).")
+        client.file.close()
+        client.file = None
+        client.sock = None
+        return context.wrap_socket(sock, server_hostname=endpoint.sni)
+    except _SmtpProtocolError:
+        raise
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        raise _SmtpProtocolError(f"Invalid SMTP response ({type(exc).__name__}).") from exc
+    finally:
+        client.close()
 
 
 def _chain_from_openssl(endpoint: Endpoint, timeout: float) -> list[bytes]:
@@ -124,6 +198,8 @@ def _chain_from_openssl(endpoint: Endpoint, timeout: float) -> list[bytes]:
         endpoint.sni,
         "-showcerts",
     ]
+    if endpoint.transport == "smtp":
+        command.extend(["-starttls", "smtp"])
     env = os.environ.copy()
     env["LC_ALL"] = "C"
     try:
